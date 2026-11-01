@@ -278,6 +278,44 @@ async function bridgeReview(limit) {
   if (files.length) review(files, { limit });
 }
 
+/** "連線 HDT 外掛" button: look for the plugin on its ports (the user asked for it). */
+let connecting = false;
+async function connectBridge() {
+  if (connecting) return;
+  connecting = true;
+  state.error = '';
+  state.status = '正在尋找 HDT 外掛…（瀏覽器若詢問「存取本機網路」請按允許）';
+  state.busy = true;
+  renderStatus();
+  try {
+    for (const port of BRIDGE_PORTS) {
+      const ctl = new AbortController();
+      // A refused port fails at once; a pending permission prompt waits for the user.
+      const timer = setTimeout(() => ctl.abort(), port === BRIDGE_PORTS[0] ? 60000 : 3000);
+      try {
+        const st = await (await fetch(`http://127.0.0.1:${port}/status`, { cache: 'no-store', signal: ctl.signal })).json();
+        if (st && st.name === 'bg_advisor_bridge') {
+          state.busy = false;
+          await startBridge(port);
+          render();
+          return;
+        }
+      } catch {
+        // not this port
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    state.error = '找不到 HDT 外掛。請確認 Hearthstone Deck Tracker 有開著、「BG Advisor」外掛已啟用；'
+      + '如果瀏覽器曾詢問「存取本機網路／localhost」而被封鎖，請在網址列左邊的網站設定改回允許，再按一次「連線 HDT 外掛」。';
+  } finally {
+    connecting = false;
+    state.busy = false;
+    state.status = '';
+    renderStatus();
+  }
+}
+
 async function forgetBridge() {
   if (state.bridgeTimer) clearInterval(state.bridgeTimer);
   state.bridgeTimer = null;
@@ -332,6 +370,7 @@ function renderStatus() {
 
 function pluginHelp(open = false) {
   return `<details class="plugin"${open ? ' open' : ''}><summary>有用 Hearthstone Deck Tracker？裝外掛就不用設定資料夾</summary>`
+    + `<p>已經裝好外掛、HDT 也開著：<button data-act="connect-bridge">連線 HDT 外掛</button></p>`
     + `<ol><li>下載 <a href="${PLUGIN_URL}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li>`
     + `<li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li>`
     + `<li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，再按一次「開啟復盤網頁」。</li>`
@@ -356,7 +395,8 @@ function setupCard() {
   if (b) {
     return `<p>找不到 HDT 外掛（連接埠 ${b.port}）。請確認 Hearthstone Deck Tracker 有開著，而且「BG Advisor」外掛已啟用。`
       + `如果瀏覽器問過「存取本機網路」而你按了封鎖，需要在網址列左邊的網站設定裡改回允許。</p>`
-      + `<div class="actions">${fileButton()}<button class="ghost" data-act="forget-bridge">不再使用外掛</button></div>`;
+      + `<div class="actions"><button data-act="connect-bridge">重新連線</button>${fileButton()}`
+      + `<button class="ghost" data-act="forget-bridge">不再使用外掛</button></div>`;
   }
   return folderOrBrowserCard() + (state.watcher ? '' : pluginHelp());
 }
@@ -441,6 +481,7 @@ document.addEventListener('click', async (ev) => {
   else if (a.dataset.act === 'resume') resumeFolder();
   else if (a.dataset.act === 'all') analyzeAll();
   else if (a.dataset.act === 'forget-bridge') forgetBridge();
+  else if (a.dataset.act === 'connect-bridge') connectBridge();
 });
 
 document.addEventListener('change', async (ev) => {
