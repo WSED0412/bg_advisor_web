@@ -83,6 +83,23 @@ export class SimPool {
     return out;
   }
 
+  /** {id: outcome} for whole scenes (Map id -> state JSON), each fought as it stands. */
+  async runStates(states, n) {
+    const out = new Map();
+    if (!states.size) return out;
+    n = Math.max(1, Math.min(Math.trunc(n), 5000));
+    const parts = [...states].map(([id, json]) => {
+      const chunkId = this.nextId++;
+      return new Promise((resolve, reject) => {
+        this.waiting.set(chunkId, { resolve, reject });
+        this.queue.push({ type: 'state', chunkId, id, json, n });
+        this._pump();
+      });
+    });
+    for (const [id, r, err] of await Promise.all(parts)) out.set(id, r !== null ? outcomeOf(r) : err);
+    return out;
+  }
+
   close() {
     for (const w of this.workers) w.terminate();
   }

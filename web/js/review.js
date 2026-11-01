@@ -9,6 +9,7 @@ import { nameOf } from './cards.js';
 import { combatScene } from './bglog.js';
 import { evaluateGame, distinct } from './positioning.js';
 import { Skip, isMagnetic, scoreMagnetize, scoreOrder, scorePick, scoreTarget } from './decisions.js';
+import { gameLuck } from './luck.js';
 import { chanceOf, describeGrade, outcomeDict, pyRound } from './scoring.js';
 
 export const PRECISION = {
@@ -112,6 +113,8 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
     }
   }
   progress(rounds.length, rounds.length, null);
+  result.luck = await gameLuck(engine, sim, result, game.picks || [], game.combats, game.lobby || [],
+                               Math.max(50, Math.floor(prec.dec / LUCK_SHARE)));
   summarize(result);
   return result;
 }
@@ -180,6 +183,8 @@ async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = [
 }
 
 export const PICK_KINDS = ['buy', 'discover'];
+// Discover luck fights every minion the Discover could offer: fewer combats each.
+const LUCK_SHARE = 5;
 
 // A common leveling pace: the Tavern tier most players have reached by a round. Being below
 // it is not a mistake by itself; it is pointed out only in rounds that were lost.

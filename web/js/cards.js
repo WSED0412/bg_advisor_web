@@ -26,6 +26,10 @@ export function card(id) {
   return byId.get(id);
 }
 
+export function allCards() {
+  return byId.values();
+}
+
 export function hasCard(id) {
   return byId.has(id);
 }

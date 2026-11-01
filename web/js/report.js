@@ -81,7 +81,7 @@ function round(r) {
     return `<section class="card" id="r${r.round}"><div class="top"><h2>第 ${r.round} 回合</h2></div><div class="note">沒有戰鬥紀錄</div></section>`;
   }
   const res = RESULT_ZH[r.result] || '?';
-  const dmg = r.result !== 'tie' ? `，${r.result === 'me' ? '造成' : '受到'} ${r.damage} 點傷害` : '';
+  const dmg = r.result !== 'tie' && r.damage ? `，${r.result === 'me' ? '造成' : '受到'} ${r.damage} 點傷害` : '';
   let ch = '';
   if (r.chance !== undefined && r.chance !== null) {
     ch = `<div class="note">實際結果在模擬中的機率：${pct(r.chance)}${r.chance < 0.10 ? '（偏低，這場模擬可能不準）' : ''}</div>`;
@@ -238,7 +238,7 @@ function round2(r) {
     return `<section class="card" id="r${r.round}"><div class="top"><h2>${esc(t('r.round', { round: r.round }))}</h2></div>`
       + `<div class="note">${esc(t('r.noCombat'))}</div></section>`;
   }
-  const dmg = r.result === 'me' ? t('r.dealt', { n: r.damage }) : r.result === 'opp' ? t('r.taken', { n: r.damage }) : '';
+  const dmg = !r.damage ? '' : r.result === 'me' ? t('r.dealt', { n: r.damage }) : r.result === 'opp' ? t('r.taken', { n: r.damage }) : '';
   let ch = '';
   if (r.chance !== undefined && r.chance !== null) {
     ch = `<div class="note">${esc(t('r.chance', { p: pct(r.chance) }) + (r.chance < 0.10 ? t('r.chanceLow') : ''))}</div>`;
@@ -275,6 +275,39 @@ function lossesHtml(s) {
       + ` <span class="mute small">${esc(tiers)}</span></li>`;
   }).join('');
   return `<h3>${esc(t('r.losses'))} <span class="mute small">${esc(t('r.lossesSub', { dmg: s.damage_taken || 0 }))}</span></h3><ul>${items}</ul>`;
+}
+
+/** Luck: what the player did not choose, against what was expected (not in any score). */
+function luckHtml(l) {
+  if (!l) return '';
+  const c = l.combat;
+  let h = `<h3>${esc(t('r.luck'))} <span class="luck luck-${l.verdict}">${esc(t(`luck.${l.verdict}`))}</span></h3>`;
+  if (c.rounds.length) {
+    h += `<p>${esc(t('r.luckCombat', { exp: c.expected_wins.toFixed(1), real: c.wins.toFixed(1),
+                                          expDmg: Math.round(c.expected_taken), dmg: c.taken }))}</p>`;
+    const odd = c.rounds.filter(x => Math.abs(x.luck) >= 0.5).sort((a, b) => a.luck - b.luck || a.round - b.round);
+    if (odd.length) {
+      h += '<ul>' + odd.map(x => {
+        const what = x.real === 0 ? 'lost' : x.real === 1 ? 'won' : x.luck < 0 ? 'tieDown' : 'tieUp';
+        return `<li><a href="#" data-round="${x.round}">${esc(t('r.lossRound', { round: x.round }))}</a> `
+          + `${esc(t('r.luckRound', { eq: pct(x.equity) }) + t(`luck.${what}`))}</li>`;
+      }).join('') + '</ul>';
+    }
+  }
+  const ds = l.discovers || [];
+  if (ds.length) {
+    const rows = ds.map(d => {
+      const src = d.source ? card(d.source) : t('r.luckDiscover');
+      const opts = d.offered.map(o => `${esc(card(o.card))} <span class="mute">${pct(o.equity)}</span>`).join('、');
+      const verdictCell = d.flat ? `<span class="mute">${esc(t('r.luckFlat'))}</span>`
+        : `<b>${pct(d.percentile)}</b> <span class="mute small">${esc(t('r.luckExpected', { eq: pct(d.expected_best) }))}</span>`;
+      return `<tr><td><a href="#" data-round="${d.round}">R${d.round}</a></td><td>${esc(src)}</td><td>${opts}</td>`
+        + `<td>${verdictCell}</td><td class="mute">${d.pool_size}</td></tr>`;
+    }).join('');
+    h += `<div class="tablewrap"><table><tr><th>${esc(t('r.tempoRound'))}</th><th>${esc(t('r.luckSource'))}</th>`
+      + `<th>${esc(t('r.luckOffered'))}</th><th>${esc(t('r.luckPct'))}</th><th>${esc(t('r.luckPool'))}</th></tr>${rows}</table></div>`;
+  }
+  return h + `<p class="note">${esc(t('r.luckNote'))}</p>`;
 }
 
 /** Tavern tier per round against the opponent's and a common pace. */
@@ -322,7 +355,7 @@ export function renderGame(res) {
     + `<div class="mute small">${esc(res.date)}・${esc(res.player)}・${esc(t('r.client', { build: res.build }))}</div></div>`
     + `<div class="place ${placeCls(place)}">${esc(place ? t('r.place', { place }) : t('r.placeUnknown'))}</div></div>`
     + `<div class="tiles">${tiles}</div><div class="strip">${strip}</div>`
-    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${lossesHtml(s)}${tempoHtml(s)}${warn}</section>`
+    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${lossesHtml(s)}${luckHtml(res.luck)}${tempoHtml(s)}${warn}</section>`
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
     + `<p class="note">${esc(t('r.pickFooter'))}</p>`

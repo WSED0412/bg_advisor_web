@@ -1,7 +1,7 @@
 // A simulation worker: runs chunks of jobs on its own TavernGym instance.
 
 import { Engine } from './engine.js';
-import { StepError, parseState, runJob } from './simcore.js';
+import { StepError, parseState, previewOf, runJob } from './simcore.js';
 import { EngineError } from './engine.js';
 
 let engine = null;
@@ -17,6 +17,22 @@ self.onmessage = async (ev) => {
     module = msg.module;
     await fresh();
     self.postMessage({ type: 'ready' });
+    return;
+  }
+  if (msg.type === 'state') {
+    if (engine.broken) await fresh();
+    let res;
+    try {
+      const g = engine.fromJson(msg.json);
+      try {
+        res = [msg.id, previewOf(g, msg.n), null];
+      } finally {
+        g.free();
+      }
+    } catch (e) {
+      res = [msg.id, null, `${e.name}: ${e.message}`];
+    }
+    self.postMessage({ type: 'done', chunkId: msg.chunkId, out: res });
     return;
   }
   if (msg.type !== 'chunk') return;

@@ -174,6 +174,10 @@ export function reorder(state, final) {
   return { ...state, players };
 }
 
+export function previewOf(g, n) {
+  return preview(g, n);
+}
+
 function preview(g, n) {
   return g.debug({ cmd: 'combat_preview', a: ME, b: OPP, n });
 }

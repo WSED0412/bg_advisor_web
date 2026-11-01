@@ -61,6 +61,10 @@ display:flex;gap:6px;align-items:center}
 table.tempo td,table.tempo th{text-align:center;white-space:nowrap}
 table.tempo th:first-child{text-align:left}
 table.tempo td.behind{color:var(--bad);font-weight:700}
+.luck{font-size:.8em;font-weight:600;padding:1px 8px;border-radius:9px;margin-left:6px;vertical-align:middle}
+.luck-good{color:var(--good);border:1px solid var(--good)}
+.luck-bad{color:var(--bad);border:1px solid var(--bad)}
+.luck-even{color:var(--mute);border:1px solid var(--mute)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 tr.mine td{font-weight:600}tr.best td{background:var(--best)}

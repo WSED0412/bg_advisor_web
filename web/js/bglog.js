@@ -69,6 +69,7 @@ class Reader {
     this.log = log;
     this.g = game;
     this.pending = null;  // [combat, my life, opp life]
+    this.oppHero = 0;
     this.openPlay = null;
     this.seq = 0;
     this.run = 0;
@@ -95,7 +96,11 @@ class Reader {
   }
 
   heroLife(player) {
-    const h = this.log.entity(player.get('HERO_ENTITY'));
+    return this.life(player.get('HERO_ENTITY'));
+  }
+
+  life(hero) {
+    const h = this.log.entity(hero);
     return h.get('HEALTH') - h.get('DAMAGE') + h.get('ARMOR');
   }
 
@@ -153,6 +158,7 @@ class Reader {
                        opp: this.side(opp, log.lastName.get(opp.id) || ''), winner: '', damage: 0 };
       this.g.combats.push(combat);
       this.pending = [combat, this.heroLife(me), this.heroLife(opp)];
+      this.oppHero = opp.get('HERO_ENTITY');
       this.snapOpen = true;
     } else if (tag === 'TURN') {
       this.snapOpen = false;
@@ -166,11 +172,13 @@ class Reader {
     this.pending = null;
     const ps = this.players();
     if (!ps) return;
-    const [me, opp] = ps;
+    const [me] = ps;
     const lost = myLife - this.heroLife(me);
-    const dealt = oppLife - this.heroLife(opp);
-    if (dealt > 0) { combat.winner = 'me'; combat.damage = dealt; }
-    else if (lost > 0) { combat.winner = 'opp'; combat.damage = lost; }
+    // The opponent's hero of this combat: by now (the next turn) the other player is Bob,
+    // so it is looked up by the entity kept when the combat began.
+    const dealt = oppLife - this.life(this.oppHero || 0);
+    if (lost > 0) { combat.winner = 'opp'; combat.damage = lost; }
+    else if (me.get('BACON_WON_LAST_COMBAT')) { combat.winner = 'me'; combat.damage = Math.max(0, dealt); }  // 0: unknown
     else combat.winner = 'tie';
   }
 
@@ -214,6 +222,7 @@ class Reader {
     if (side.board.length || !combat.opp.board.length) {
       combat.opp = side;
       oppLife = this.heroLife(opp);
+      this.oppHero = opp.get('HERO_ENTITY');
     }
     if (!combat.me.board.length) {
       combat.me = this.side(me, combat.me.name);
