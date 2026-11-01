@@ -4,7 +4,7 @@
 // later, as the client plays the animations). Each game starts at CREATE_GAME; a reconnect
 // also starts with CREATE_GAME and a full dump of the current state.
 
-const PREFIX = /^D [\d:.]+ GameState\.DebugPrint(Power|Game)\(\) - (.*)$/;
+const PREFIX = /^D [\d:.]+ GameState\.DebugPrint(Power|Game|EntityChoices|EntitiesChosen)\(\) - (.*)$/;
 const ENT_BRACKET = /^\[([^\]]*)\]/;
 const KV = /(\w+)=((?:(?! \w+=).)*)/g;
 const RE_TAG = /^tag=(\S+) value=(.*)$/;
@@ -46,7 +46,15 @@ export class PowerLog {
     this.lastName = new Map();        // entity id -> latest display name used
     this._tagHandlers = [];
     this._blockHandlers = [];
+    this._choiceHandlers = [];
+    this.choices = new Map();   // id -> {id, player, type, source, options, chosen}
+    this._choice = null;
+    this._chosen = null;
+    this._chosenCount = 0;
   }
+
+  /** fn(log, choice) once a choice's pick is known. */
+  onChoice(fn) { this._choiceHandlers.push(fn); }
 
   onTag(fn) { this._tagHandlers.push(fn); }
   onBlock(fn) { this._blockHandlers.push(fn); }
@@ -123,6 +131,8 @@ export class PowerLog {
 
   feed(kind, body) {
     if (kind === 'Game') { this._feedHeader(body); return; }
+    if (kind === 'EntityChoices') { this._feedChoices(body.trim()); return; }
+    if (kind === 'EntitiesChosen') { this._feedChosen(body.trim()); return; }
     const s = body.trim();
     if (s.startsWith('tag=')) {
       const m = RE_TAG.exec(s);
@@ -186,6 +196,41 @@ export class PowerLog {
         this._current = this.entity(eid);
       }
     }
+  }
+
+  _feedChoices(s) {
+    const m = /^id=(\d+) Player=(.*?) TaskList=\S* ChoiceType=(\S+)/.exec(s);
+    if (m) {
+      this._choice = { id: parseInt(m[1], 10), player: m[2], type: m[3], source: null, options: [], chosen: [] };
+      this.choices.set(this._choice.id, this._choice);
+      return;
+    }
+    const c = this._choice;
+    if (!c) return;
+    if (s.startsWith('Source=')) c.source = this._ref(s.slice('Source='.length));
+    else if (s.startsWith('Entities[')) {
+      const eid = this._ref(s.slice(s.indexOf('=') + 1));
+      if (eid !== null) c.options.push(eid);
+    }
+  }
+
+  _feedChosen(s) {
+    const m = /^id=(\d+) Player=.*? EntitiesCount=(\d+)/.exec(s);
+    if (m) {
+      const c = this.choices.get(parseInt(m[1], 10)) || null;
+      this._chosen = c;
+      if (c) {
+        c.chosen = [];
+        this._chosenCount = parseInt(m[2], 10);
+        if (this._chosenCount === 0) for (const fn of this._choiceHandlers) fn(this, c);
+      }
+      return;
+    }
+    const c = this._chosen;
+    if (!c || !s.startsWith('Entities[')) return;
+    const eid = this._ref(s.slice(s.indexOf('=') + 1));
+    if (eid !== null) c.chosen.push(eid);
+    if (c.chosen.length === this._chosenCount) for (const fn of this._choiceHandlers) fn(this, c);
   }
 
   _feedHeader(body) {

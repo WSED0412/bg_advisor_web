@@ -8,7 +8,7 @@ import { build, SceneError } from './scene.js';
 import { nameOf } from './cards.js';
 import { combatScene } from './bglog.js';
 import { evaluateGame, distinct } from './positioning.js';
-import { Skip, isMagnetic, scoreMagnetize, scoreOrder, scoreTarget } from './decisions.js';
+import { Skip, isMagnetic, scoreMagnetize, scoreOrder, scorePick, scoreTarget } from './decisions.js';
 import { chanceOf, describeGrade, outcomeDict, pyRound } from './scoring.js';
 
 export const PRECISION = {
@@ -95,7 +95,8 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
       };
     }
     const plays = game.plays.filter(p => p.round === rnd);
-    for (const rep of await reviewDecisions(engine, sim, plays, combat, prec.dec, rr.skipped)) {
+    const picks = (game.picks || []).filter(k => k.round === rnd);
+    for (const rep of await reviewDecisions(engine, sim, plays, combat, prec.dec, rr.skipped, picks)) {
       rr.decisions.push({
         kind: rep.kind, title: rep.title, card: rep.card || null, cards: rep.cards || null,
         gap: rep.grade ? rep.grade.gap : null, mode: rep.grade ? rep.grade.mode : null,
@@ -141,7 +142,7 @@ async function reviewPositioning(engine, sim, combat, prec, rr) {
   return rep;
 }
 
-async function reviewDecisions(engine, sim, plays, combat, n, skipped) {
+async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = []) {
   const reports = [];
   const tryScore = async (subject, fn) => {
     try {
@@ -170,16 +171,23 @@ async function reviewDecisions(engine, sim, plays, combat, n, skipped) {
       await tryScore({ kind: 'order', cards: run.map(p => p.card) }, () => scoreOrder(engine, sim, run, combat, n));
     }
   }
+  // Picks: this round's power only, shown for reference (not in averages or mistakes).
+  for (const k of picks) {
+    await tryScore({ kind: k.kind, card: k.source || null }, () => scorePick(engine, sim, k, combat, n));
+  }
   return reports;
 }
 
+export const PICK_KINDS = ['buy', 'discover'];
+
 function summarize(result) {
   const pos = result.rounds.filter(r => r.positioning).map(r => r.positioning.score);
-  const decs = result.rounds.flatMap(r => r.decisions).filter(d => d.score !== null);
+  // Buys and Discovers are judged by this round's power only: shown, but not counted.
+  const decs = result.rounds.flatMap(r => r.decisions).filter(d => d.score !== null && !PICK_KINDS.includes(d.kind));
   const misplays = [
     ...result.rounds.filter(r => r.positioning && r.positioning.verdict === '明顯失誤')
       .map(r => ({ round: r.round, what: '站位', kind: 'positioning', score: r.positioning.score })),
-    ...result.rounds.flatMap(r => r.decisions.filter(d => d.verdict === '明顯失誤')
+    ...result.rounds.flatMap(r => r.decisions.filter(d => d.verdict === '明顯失誤' && !PICK_KINDS.includes(d.kind))
       .map(d => ({ round: r.round, what: d.title, kind: d.kind, card: d.card, cards: d.cards, score: d.score }))),
   ];
   const avg = xs => pyRound(xs.reduce((a, b) => a + b, 0) / xs.length);

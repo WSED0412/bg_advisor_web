@@ -166,7 +166,11 @@ const noteText = n => (typeof n === 'string' ? n : t(`note.${n.code}`, { card: c
 const notes2 = ns => (ns || []).map(n => `<div class="note">${esc(t('r.note', { text: noteText(n) }))}</div>`).join('');
 
 /** "Target of X" / "Where to put X" / "Play order (A → B)" / "Positioning". */
+const PICK_KINDS = ['buy', 'discover'];
+
 function subject(d, withCards = false) {
+  if (d.kind === 'buy') return t('d.buy');
+  if (d.kind === 'discover') return d.card ? t('d.discoverFrom', { card: card(d.card) }) : t('d.discover');
   if (d.kind === 'target') return t('d.target', { card: card(d.card) });
   if (d.kind === 'magnetize') return t('d.magnetize', { card: card(d.card) });
   if (d.kind === 'order') {
@@ -179,6 +183,7 @@ function optionText(kind, o) {
   if (!o) return '';
   if (o.alone) return t('d.alone');
   if (o.cards) return o.cards.map(card).join(t('d.then'));
+  if (o.pos === undefined) return `${card(o.card)} ${o.atk}/${o.hp}`;  // a pick: the minion itself
   return t(kind === 'magnetize' ? 'd.attach' : 'd.slot', { card: card(o.card), pos: o.pos });
 }
 
@@ -212,7 +217,8 @@ function positioning2(r) {
 function decision2(d) {
   const rows = d.options.map((o, i) => `<tr class="${o.mine ? 'mine' : ''}${i === 0 ? ' best' : ''}">`
     + `<td>${esc(optionText(d.kind, o.opt))}${o.mine ? esc(t('r.mine')) : ''}</td><td>${bar(o.outcome)}</td><td>${otext2(o.outcome)}</td></tr>`).join('');
-  return `<h3>${esc(subject(d))} ${scoreHtml(d.score)} <span class="mute small">${esc(verdictOf(d.score))}</span></h3>`
+  const tag = PICK_KINDS.includes(d.kind) ? `・${t('r.pickTag')}` : '';
+  return `<h3>${esc(subject(d))} ${scoreHtml(d.score)} <span class="mute small">${esc(verdictOf(d.score) + tag)}</span></h3>`
     + `<div class="tablewrap"><table>${rows}</table></div>${notes2(d.notes)}`;
 }
 
@@ -285,5 +291,6 @@ export function renderGame(res) {
     + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${warn}</section>`
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
+    + `<p class="note">${esc(t('r.pickFooter'))}</p>`
     + `<p class="small"><a href="#" data-delete="${esc(res.key)}" class="mute">${esc(t('r.delete'))}</a></p>`;
 }

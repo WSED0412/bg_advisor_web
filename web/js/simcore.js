@@ -76,8 +76,17 @@ function boardIndex(me, eid) {
   return i;
 }
 
+/** Take the first option of choices left open (a Discover), so play can go on. */
+function settleOpen(g, limit = 4) {
+  for (let i = 0; i < limit; i++) {
+    if (!meView(g).pending) return;
+    step(g, A_CHOOSE);
+  }
+}
+
 export function applySteps(g, steps, settle = true) {
   for (const st of steps) {
+    if (st[0] !== 'target') settleOpen(g);  // a Discover opened by the previous card would block this one
     const me = meView(g);
     const kind = st[0];
     if (kind === 'play') {
@@ -101,10 +110,7 @@ export function applySteps(g, steps, settle = true) {
     }
   }
   // A choice left open (Discover...) would block combat: take the first option.
-  for (let i = 0; i < (settle ? 4 : 0); i++) {
-    if (!meView(g).pending) break;
-    step(g, A_CHOOSE);
-  }
+  if (settle) settleOpen(g);
 }
 
 /** Arrange my warband by `final` (eids or card ids); unmatched minions keep their order. */

@@ -32,8 +32,9 @@ export function noCombatEffect(cid) {
   return cid.startsWith('TB_BaconShop_Triples') || NO_COMBAT_EFFECT_WORDS.some(w => textOf(cid).includes(w));
 }
 
+/** The keyword, not the word: "Deathrattle: Get a random Magnetic Volumizer" is no Magnetic minion. */
 export function isMagnetic(cid) {
-  return textOf(cid).includes('Magnetic');
+  return /^Magnetic\b/.test(textOf(cid));
 }
 
 function sceneFor(plays, combat) {
@@ -190,7 +191,10 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
   if (run.length < 2) throw new Skip('one_card');
   if (run.length > MAX_ORDER_CARDS) throw new Skip('too_many', { n: MAX_ORDER_CARDS });
   if (run.some(p => p.kind === 'HERO_POWER')) throw new Skip('has_hero_power');
-  if (run.some(p => noCombatEffect(p.card))) throw new Skip('has_discover');
+  // Cards that give cards are fine (the simulator's card stays in hand), unless a card given
+  // in this sequence is played in it: the simulator would give a different one.
+  const played = new Set(run.map(p => p.entity));
+  if (run.some(p => p.creator && played.has(p.creator))) throw new Skip('plays_given_card');
   const notes = [];
   const { g, ent, hidOf } = setup(engine, run, combat, notes);
   try {
@@ -225,4 +229,56 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
   } finally {
     g.free();
   }
+}
+
+// ---------------------------------------------------------------- picks (power this round)
+
+/**
+ * A bought or Discovered minion against the other options, by this round's combat only: the
+ * taken minion is replaced, in its slot of the warband that fought, by each option with the
+ * same later buffs. Battlecries and the value in later rounds are not counted.
+ */
+export async function scorePick(engine, sim, pick, combat, n = 1000) {
+  const board = combat.me.board;
+  const slot = board.findIndex(m => m.entity === pick.chosen);
+  if (slot < 0) throw new Skip('pick_not_on_board');
+  const chosen = pick.options.find(o => o.entity === pick.chosen);
+  const onBoard = board[slot];
+  const dAtk = onBoard.atk - chosen.atk, dHp = onBoard.hp - chosen.hp;
+  const gained = onBoard.keywords.filter(k => !chosen.keywords.includes(k));
+
+  const notes = [];
+  const results = new Map(), labels = new Map(), opts = new Map(), seen = new Map();
+  for (let i = 0; i < pick.options.length; i++) {
+    const o = pick.options[i];
+    if (!hasCard(o.card)) continue;
+    const id = String(i);
+    labels.set(id, `${nameOf(o.card)} ${o.atk}/${o.hp}`);
+    opts.set(id, { card: o.card, atk: o.atk, hp: o.hp });
+    const key = [o.card, o.atk, o.hp, [...o.keywords].sort().join()].join('|');
+    if (seen.has(key)) { results.set(id, results.get(seen.get(key))); continue; }  // the same minion twice
+    seen.set(key, id);
+    const sc = combatScene(combat);
+    sc.me.board[slot] = { card: o.card, atk: Math.max(0, o.atk + dAtk), hp: Math.max(1, o.hp + dHp),
+                          keywords: [...new Set([...o.keywords, ...gained])].sort() };
+    let g;
+    try {
+      g = build(engine, sc, notes);
+    } catch (e) {
+      if (!(e instanceof SceneError)) throw e;
+      results.set(id, e.message);
+      continue;
+    }
+    try {
+      const r = await sim.run(g, [{ id, order: board.map((_, k) => k) }], n);
+      results.set(id, r.get(id));
+    } finally {
+      g.free();
+    }
+  }
+  const mineId = String(pick.options.findIndex(o => o.entity === pick.chosen));
+  const title = pick.kind === 'buy' ? '買哪隻（本回合戰力）' : '發現哪張（本回合戰力）';
+  const uniq = [];
+  for (const n2 of notes) if (!uniq.some(u => u.code === n2.code && u.card === n2.card)) uniq.push(n2);
+  return finish(pick.kind, pick.round, { title, card: pick.source || null }, labels, opts, results, mineId, uniq);
 }

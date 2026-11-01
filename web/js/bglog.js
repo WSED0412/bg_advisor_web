@@ -47,6 +47,7 @@ class Reader {
     this.snapOpen = false;
     log.onTag((l, e, tag, old, nw) => this._tag(l, e, tag, old, nw));
     log.onBlock((l, b, start) => this._block(l, b, start));
+    log.onChoice((l, c) => this._choice(l, c));
   }
 
   get turn() {
@@ -124,6 +125,25 @@ class Reader {
     else combat.winner = 'tie';
   }
 
+  /** A minion bought from the Tavern: remember the whole Tavern at that moment. */
+  buy(log, bob, target) {
+    const shop = log.inZone(bob.controller, 'PLAY', 'MINION').map(minionOf);
+    if (shop.some(m => m.entity === target) && shop.length >= 2) {
+      this.g.picks.push({ round: Math.floor(this.turn / 2) + 1, kind: 'buy', source: '', chosen: target, options: shop });
+    }
+  }
+
+  /** A Discover of minions during recruit, and the one picked. */
+  _choice(log, c) {
+    if (c.type !== 'GENERAL' || this.turn % 2 === 0 || c.chosen.length !== 1 || c.options.length < 2) return;
+    if (this.g.player && c.player !== this.g.player) return;
+    const ents = c.options.map(id => log.entity(id));
+    if (ents.some(e => e.cardtype !== 'MINION')) return;
+    const source = c.source !== null ? baseId(log.entity(c.source).cardId) : '';
+    this.g.picks.push({ round: Math.floor(this.turn / 2) + 1, kind: 'discover', source, chosen: c.chosen[0],
+                        options: ents.map(minionOf) });
+  }
+
   /** Retake a combat snapshot that missed the opponent's hero or warband. */
   completeSnapshot() {
     let [combat, myLife, oppLife] = this.pending;
@@ -162,6 +182,7 @@ class Reader {
     if (start) {
       this.openPlay = null;
       if (e.controller !== me.controller) return;
+      if (e.cardId === 'TB_BaconShop_DragBuy' && b.target !== null) this.buy(log, ps[1], b.target);
       if (BREAKERS.some(x => e.cardId.startsWith(x)) || (!PLAYABLE.has(e.cardtype) && e.cardtype !== 'HERO_POWER')) {
         this.lastWasPlay = false;
         return;
@@ -177,7 +198,8 @@ class Reader {
       this.seq += 1;
       this.openPlay = { round: Math.floor(this.turn / 2) + 1, seq: this.seq, card: baseId(e.cardId), kind: e.cardtype,
                         handStats: [e.get('ATK'), e.get('HEALTH') - e.get('DAMAGE')], boardBefore: board,
-                        targetIndex: target, magnetizedTo: null, position: null, entity: e.id, run: this.run };
+                        targetIndex: target, magnetizedTo: null, position: null, entity: e.id, run: this.run,
+                        creator: e.get('CREATOR') };
       this.lastWasPlay = e.cardtype !== 'HERO_POWER';
     } else {
       const p = this.openPlay;
@@ -249,6 +271,20 @@ export function cardChanges(lines) {
 
 // ------------------------------------------------------------- games
 
+/** The local player's name from the game header (the player with a real account). */
+function localName(rg) {
+  const names = new Map(), his = new Map();
+  for (const [, kind, body] of rg.lines.slice(0, 4000)) {
+    const b = body.trim();
+    let m = kind === 'Game' ? /^PlayerID=(\d+), PlayerName=(.*)$/.exec(b) : null;
+    if (m) names.set(parseInt(m[1], 10), m[2]);
+    m = kind === 'Power' ? /^Player EntityID=\d+ PlayerID=(\d+) GameAccountId=\[hi=(\d+)/.exec(b) : null;
+    if (m) his.set(parseInt(m[1], 10), parseInt(m[2], 10));
+  }
+  for (const [pid, hi] of his) if (hi && names.has(pid)) return names.get(pid);
+  return '';
+}
+
 /** Every Battlegrounds game in the given logs ([{text, source}]), reconnects merged. */
 export function readGames(files) {
   const out = [];
@@ -256,7 +292,7 @@ export function readGames(files) {
     // Skip other game modes before the (slower) entity replay.
     if (!rg.lines.some(([, kind, body]) => kind === 'Game' && body.trim() === 'GameType=GT_BATTLEGROUNDS')) continue;
     const log = new PowerLog();
-    const game = { source: rg.source, build: 0, player: '', combats: [], plays: [], reconnect: rg.reconnect,
+    const game = { source: rg.source, build: 0, player: localName(rg), combats: [], plays: [], picks: [], reconnect: rg.reconnect,
                    start: '', complete: false, place: 0, hero: '', cardChanges: [] };
     const reader = new Reader(log, game);
     rg.run(log);
@@ -291,6 +327,7 @@ export function mergeReconnects(games) {
       const lastRun = Math.max(0, ...prev.plays.map(p => p.run));
       for (const p of g.plays) p.run += lastRun;
       prev.plays.push(...g.plays);
+      prev.picks.push(...g.picks);
       prev.source += ' + ' + g.source;
       prev.complete = g.complete;
       prev.place = g.place || prev.place;
