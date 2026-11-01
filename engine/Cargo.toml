@@ -1,0 +1,22 @@
+[package]
+name = "taverngym-wasm"
+description = "WebAssembly bindings of TavernGym for the bg_advisor web app"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# TavernGym v1.0.0 (36.6.3, build 253932).
+taverngym = { git = "https://github.com/MCG-NJU/AutoTavern", rev = "fb61201a557ddd36a411cf44aac51ce4d9b606ce" }
+serde_json = "1.0.151"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

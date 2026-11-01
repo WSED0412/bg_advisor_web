@@ -1,0 +1,7 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+# Combats recurse deeply (deaths -> deathrattles -> summons -> triggers); the wasm default
+# stack is 1 MiB. TavernGym's stack guard assumes at least 6 MiB.
+rustflags = ["-C", "link-arg=-zstack-size=16777216"]

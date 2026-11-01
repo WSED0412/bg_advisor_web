@@ -1,0 +1,59 @@
+name: Build and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with the wasm32 target
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            engine/target
+          key: cargo-${{ hashFiles('engine/Cargo.toml', 'engine/Cargo.lock', 'engine/src/**') }}
+
+      - name: Build TavernGym for WebAssembly
+        working-directory: engine
+        run: cargo build --release
+
+      - name: Assemble site
+        run: |
+          mkdir -p web/engine
+          cp engine/target/wasm32-unknown-unknown/release/taverngym_wasm.wasm web/engine/taverngym.wasm
+          rm -rf web/testdata
+          ls -la web web/engine
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

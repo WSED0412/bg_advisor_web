@@ -1,0 +1,3 @@
+engine/target/
+web/engine/*.wasm
+web/testdata/

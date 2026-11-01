@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>英雄戰場復盤</title>
+<meta name="description" content="讀取爐石戰記的 Power.log，用模擬器替英雄戰場的站位與出牌決策打分數。所有分析都在你的瀏覽器裡進行。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23b7791f'/%3E%3Cpath d='M9 22V10h6.5a4 4 0 0 1 0 8H9m6.5 0L22 22' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <header class="top head">
+    <a href="#/" class="brand"><h1>英雄戰場復盤</h1></a>
+    <div id="status" class="status"></div>
+  </header>
+  <div id="error" class="warn err" hidden></div>
+  <div id="view"></div>
+
+  <details id="help-blocked" class="card help">
+    <summary>瀏覽器說「無法開啟這個資料夾」怎麼辦？</summary>
+    <p>Chrome 和 Edge 不允許網頁讀取 <code>Program Files</code> 裡的資料夾，而爐石預設把紀錄檔放在那裡。
+       可以把 Logs 資料夾搬到「文件」，再在原位置放一個連結，爐石會照常寫入，網頁也能讀取。只需要做一次：</p>
+    <ol>
+      <li>先完全關閉爐石。</li>
+      <li>在開始選單搜尋「命令提示字元」，按右鍵選「以系統管理員身分執行」，貼上下面三行（安裝位置不同請自行修改）：</li>
+    </ol>
+<pre>robocopy "C:\Program Files (x86)\Hearthstone\Logs" "%USERPROFILE%\Documents\HearthstoneLogs" /E /MOVE
+rmdir "C:\Program Files (x86)\Hearthstone\Logs"
+mklink /J "C:\Program Files (x86)\Hearthstone\Logs" "%USERPROFILE%\Documents\HearthstoneLogs"</pre>
+    <ol start="3">
+      <li>回到這個頁面，選擇「文件 › HearthstoneLogs」資料夾。</li>
+    </ol>
+    <p class="small mute">想還原時，刪除那個連結（<code>rmdir "C:\Program Files (x86)\Hearthstone\Logs"</code>），再把資料夾搬回去即可。
+       不想改的話，也可以每局結束後用「選擇 Power.log」或直接把檔案拖進這個頁面。</p>
+  </details>
+
+  <details class="card help">
+    <summary>這是什麼？資料會上傳嗎？</summary>
+    <p>這個網頁讀取爐石的 <code>Power.log</code>，重建每回合的戰鬥，用
+       <a href="https://github.com/MCG-NJU/AutoTavern">TavernGym</a> 模擬器把你的站位、指向性目標、磁力和出牌順序，
+       和其他所有選擇比較勝率後打分數。</p>
+    <p>所有分析都在你的電腦上（瀏覽器裡）進行，紀錄檔和報告都不會上傳到任何地方；報告只存在這個瀏覽器裡。</p>
+    <p class="small mute">模擬器依 36.6.3（253932）版本建置；數值和你的客戶端不同的隨從會在報告中標出。
+       Hearthstone 與卡片資料為 Blizzard Entertainment 所有，本網站與 Blizzard 無關。
+       <a href="https://github.com/WSED0412/bg_advisor_web">原始碼</a></p>
+  </details>
+</main>
+<div class="dropzone">放開以分析 Power.log</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
