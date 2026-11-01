@@ -27,11 +27,42 @@ export function minionOf(e) {
 export const minionScene = m => ({ card: m.card, atk: m.atk, hp: Math.max(1, m.hp), keywords: m.keywords });
 
 export const sideScene = s => ({
-  hero: s.hero, health: Math.max(1, s.health), armor: s.armor, tier: Math.max(1, s.tier),
-  trinkets: s.trinkets, board: s.board.map(minionScene),
+  hero: s.hero, hero_power: s.heroPower, health: Math.max(1, s.health), armor: s.armor, tier: Math.max(1, s.tier),
+  trinkets: s.trinkets, spells: s.spells || [], stats: s.stats || {}, rewards: s.rewards || [],
+  board: s.board.map(minionScene),
 });
 
-export const combatScene = c => ({ turn: c.round, me: sideScene(c.me), opponent: sideScene(c.opp) });
+export const combatScene = c => {
+  const sc = { turn: c.round, me: sideScene(c.me), opponent: sideScene(c.opp) };
+  if (c.lobby && c.lobby.length) sc.lobby = c.lobby;
+  return sc;
+};
+
+// Player tags -> TavernGym player stats ("this game" numbers that change combats).
+const STAT_TAGS = [
+  ['1844', 'gem_atk'], ['BACON_BLOODGEMBUFFATKVALUE', 'gem_atk'],          // Blood Gems' extra Attack
+  ['2827', 'gem_hp'], ['BACON_BLOODGEMBUFFHEALTHVALUE', 'gem_hp'],
+  ['2878', 'elementals_played'], ['BACON_ELEMENTAL_PLAY_COUNTER', 'elementals_played'],
+  ['NUM_SPELLS_PLAYED_THIS_GAME', 'spells_cast'],
+];
+const LOBBY_SIZE = 5;
+
+/** The lobby's minion types, from the pool minions seen in the game (most cards first). */
+export function lobbyTypes(log) {
+  const count = new Map(), seen = new Set();
+  for (const e of log.entities.values()) {
+    if (e.cardtype !== 'MINION' || !e.get('IS_BACON_POOL_MINION')) continue;
+    const cid = baseId(e.cardId);
+    if (seen.has(cid)) continue;
+    seen.add(cid);
+    const races = (cardOf(cid) || {}).races || [];
+    if (!races.length || races.length > 2) continue;  // neutral, or "all types"
+    for (const r of races) count.set(r, (count.get(r) || 0) + 1);
+  }
+  const ranked = [...count].filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([r]) => r);
+  return ranked.slice(0, LOBBY_SIZE).sort();
+}
 
 class Reader {
   constructor(log, game) {
@@ -77,8 +108,18 @@ class Reader {
       && !e.cardId.startsWith('BG30_Trinket_')).map(e => e.cardId);  // unpicked placeholders
     const board = this.log.inZone(ctl, 'PLAY', 'MINION').map(minionOf);
     const tier = player.get('PLAYER_TECH_LEVEL') || hero.get('PLAYER_TECH_LEVEL');
+    // Spells cast during recruit that act at the start of combat wait in the Secret zone.
+    const spells = this.log.inZone(ctl, 'SECRET')
+      .filter(e => e.cardId && (e.cardtype === 'BATTLEGROUND_SPELL' || e.cardtype === 'SPELL')).map(e => baseId(e.cardId));
+    const rewards = inPlay.filter(e => e.cardtype === 'BATTLEGROUND_QUEST_REWARD' && e.cardId).map(e => baseId(e.cardId));
+    const stats = {};
+    for (const [tag, k] of STAT_TAGS) {
+      const v = player.get(tag);
+      if (v) stats[k] = v;
+    }
     return { name, hero: baseId(hero.cardId), heroPower: power ? baseId(power.cardId) : '',
-             health: hero.get('HEALTH') - hero.get('DAMAGE'), armor: hero.get('ARMOR'), tier, trinkets, board };
+             health: hero.get('HEALTH') - hero.get('DAMAGE'), armor: hero.get('ARMOR'), tier, trinkets, board,
+             spells, rewards, stats };
   }
 
   myBoard() {
@@ -322,6 +363,7 @@ export function readGames(files) {
     game.cardChanges = cardChanges(rg.lines);
     game.start = rg.lines.length ? rg.lines[0][0] : '';
     if (game.combats.length) game.hero = game.combats[game.combats.length - 1].me.hero;
+    game.lobby = lobbyTypes(log);
     if (!game.place) {
       const ps = reader.players();
       if (ps) game.place = log.entity(ps[0].get('HERO_ENTITY')).get('PLAYER_LEADERBOARD_PLACE');
@@ -333,6 +375,7 @@ export function readGames(files) {
     attachFound(g);
     attachOrigins(g);
     delete g.copied;  // only needed here
+    for (const c of g.combats) c.lobby = g.lobby || [];
   }
   return games;
 }

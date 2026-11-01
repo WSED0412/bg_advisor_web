@@ -5,6 +5,7 @@
 // until TavernGym shows the same numbers (otherwise an aura would count twice).
 
 import { nameOf, resolve } from './cards.js';
+import { parseState, dumpState } from './simcore.js';
 
 export const ME = 0, OPP = 1;
 // A. F. Kay: a Hero Power with no combat effect, so the hero never changes a combat result.
@@ -14,8 +15,12 @@ const KEYWORDS = new Set(['TAUNT', 'DIVINE_SHIELD', 'WINDFURY', 'REBORN', 'VENOM
 
 export class SceneError extends Error {}
 
-function recruitGame(engine, seed) {
-  const g = engine.newGame(seed, { record_log: false });
+const A_PLAY = 46, N_POS = 8;
+
+function recruitGame(engine, seed, lobby = null) {
+  const cfg = { record_log: false };
+  if (lobby && lobby.length) cfg.lobby_types = lobby.slice(0, 5);
+  const g = engine.newGame(seed, cfg);
   const n = JSON.parse(g.stateJson()).players.length;
   for (let p = 0; p < n; p++) g.step(p, g.view(p).actions.CHOOSE);
   for (let p = 0; p < n; p++) {
@@ -61,6 +66,18 @@ function setupPlayer(g, p, side, notes) {
     }
   }
   if (!heroSet) debug(g, { cmd: 'set_hero', p, hero: NEUTRAL_HERO });
+  const power = side.hero_power;
+  if (heroSet && power) {
+    const have = (g.view(p).me.hero_power || {}).id;
+    if (have !== power) {
+      try {
+        debug(g, { cmd: 'set_hero_power', p, slot: 0, card: power });
+      } catch (e) {
+        if (!(e instanceof SceneError)) throw e;
+        notes.push({ code: 'unknown_hero_power', card: power });
+      }
+    }
+  }
 
   const fields = {};
   for (const k of ['tier', 'health', 'armor']) if (k in side) fields[k] = Math.trunc(side[k]);
@@ -72,6 +89,14 @@ function setupPlayer(g, p, side, notes) {
     } catch (e) {
       if (!(e instanceof SceneError)) throw e;
       notes.push({ code: 'unknown_trinket', card: t });
+    }
+  }
+  for (const r of side.rewards || []) {
+    try {
+      debug(g, { cmd: 'give_reward', p, card: r });
+    } catch (e) {
+      if (!(e instanceof SceneError)) throw e;
+      notes.push({ code: 'unknown_reward', card: r });
     }
   }
   // Getting a trinket can trigger its "when you get this" effect again (Portable Factory
@@ -93,6 +118,8 @@ function setupPlayer(g, p, side, notes) {
     }
   });
 
+  castWaiting(g, p, side.spells || [], notes);
+
   for (const h of side.hand || []) {
     let c = null;
     try { c = h.card ? resolve(h.card) : null; } catch { c = null; }
@@ -104,6 +131,57 @@ function setupPlayer(g, p, side, notes) {
       debug(g, { cmd: 'add_spell', p, zone: 'hand', card: c.id });
     }
   }
+}
+
+/**
+ * Cast again the spells that wait for this combat ("Start of Combat: ..."), so TavernGym holds
+ * them too. What else casting does (buffs, cards) is undone: the board is calibrated to the
+ * log's numbers afterwards and the hand is cleared.
+ */
+function castWaiting(g, p, spells, notes) {
+  if (!spells.length) return;
+  debug(g, { cmd: 'set_player', p, gold: 99 });
+  for (const cid of spells) {
+    if (cid.startsWith('TB_Bacon_Secrets_')) {
+      try {
+        debug(g, { cmd: 'add_secret', p, card: cid });
+      } catch (e) {
+        if (!(e instanceof SceneError)) throw e;
+        notes.push({ code: 'unknown_secret', card: cid });
+      }
+      continue;
+    }
+    try {
+      debug(g, { cmd: 'add_spell', p, zone: 'hand', card: cid });
+    } catch (e) {
+      if (!(e instanceof SceneError)) throw e;
+      notes.push({ code: 'unknown_spell', card: cid });
+      continue;
+    }
+    const hand = g.view(p).me.hand.length - 1;
+    const action = A_PLAY + hand * N_POS;
+    if (g.legalMask(p)[action] === '1') {
+      g.step(p, action);
+      settleChoices(g, p);
+    } else {
+      notes.push({ code: 'cannot_cast', card: cid });
+    }
+  }
+  debug(g, { cmd: 'clear_zone', p, zone: 'hand' });
+}
+
+/** The players' "this game" numbers from the scene (not settable by a debug command). */
+function setStats(engine, g, scene) {
+  const sides = [[ME, scene.me.stats || {}], [OPP, scene.opponent.stats || {}]];
+  if (!sides.some(([, st]) => Object.keys(st).length)) return g;
+  const state = parseState(g.stateJson());
+  for (const [p, st] of sides) {
+    const stats = state.players[p].stats;
+    for (const k of Object.keys(st).sort()) if (k in stats) stats[k] = Math.trunc(st[k]);
+  }
+  const g2 = engine.fromJson(dumpState(state));
+  g.free();
+  return g2;
 }
 
 /** Resolve pending choices of seat p (first option, else cancel). */
@@ -140,11 +218,12 @@ function calibrate(g, p, board, rounds = 3) {
 
 /** The scene in a TavernGym game; `notes` collects what could not be reproduced. */
 export function build(engine, scene, notes = [], seed = 1) {
-  const g = recruitGame(engine, seed);
+  let g = recruitGame(engine, seed, scene.lobby);
   try {
     if ('turn' in scene) debug(g, { cmd: 'set_turn', turn: Math.trunc(scene.turn) });
     setupPlayer(g, ME, scene.me, notes);
     setupPlayer(g, OPP, scene.opponent, notes);
+    g = setStats(engine, g, scene);
     debug(g, { cmd: 'set_player', p: ME, gold: 99 });  // recruit decisions should never lack Gold
     calibrate(g, ME, scene.me.board || []);
     calibrate(g, OPP, scene.opponent.board || []);

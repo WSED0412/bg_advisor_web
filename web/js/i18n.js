@@ -231,6 +231,11 @@ const STR = {
 
     'note.unknown_hero': '模擬器不認得英雄「{card}」，改用沒有戰鬥效果的英雄',
     'note.unknown_trinket': '模擬器不認得飾品「{card}」，沒有放進模擬',
+    'note.unknown_hero_power': '模擬器不認得英雄技能「{card}」，改用英雄原本的技能',
+    'note.unknown_reward': '模擬器不認得任務獎勵「{card}」，沒有放進模擬',
+    'note.unknown_secret': '模擬器不認得奧祕「{card}」，沒有放進模擬',
+    'note.unknown_spell': '模擬器不認得「{card}」，這場戰鬥沒有它的效果',
+    'note.cannot_cast': '模擬器裡無法施放「{card}」，這場戰鬥沒有它的效果',
 
     'grade.win': '{score} / 100（{verdict}，比最佳少 {gap} 個百分點）',
     'grade.damage': '{score} / 100（{verdict}；怎麼做都很難贏，比最佳多受 {gap} 點傷害）',
@@ -428,6 +433,11 @@ const STR = {
 
     'note.unknown_hero': 'The simulator does not know the hero "{card}"; a hero without combat effects was used',
     'note.unknown_trinket': 'The simulator does not know the trinket "{card}"; it was left out',
+    'note.unknown_hero_power': "The simulator does not know the Hero Power \"{card}\"; the hero's own was used",
+    'note.unknown_reward': 'The simulator does not know the Quest Reward "{card}"; it was left out',
+    'note.unknown_secret': 'The simulator does not know the Secret "{card}"; it was left out',
+    'note.unknown_spell': 'The simulator does not know "{card}"; its effect is missing from this combat',
+    'note.cannot_cast': '"{card}" could not be cast in the simulator; its effect is missing from this combat',
 
     'grade.win': '{score} / 100 ({verdict}; {gap} win-rate points below the best)',
     'grade.damage': '{score} / 100 ({verdict}; every option likely loses, {gap} more damage than the best)',
