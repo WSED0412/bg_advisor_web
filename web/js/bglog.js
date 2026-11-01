@@ -88,6 +88,14 @@ class Reader {
   }
 
   _tag(log, e, tag, old, nw) {
+    if (tag === 'COPIED_FROM_ENTITY_ID') {
+      // Each round's copy of a minion links back to the previous one.
+      if (/^\d+$/.test(nw)) {
+        const from = parseInt(nw, 10);
+        if (from && from !== e.id && !this.g.copied.has(e.id)) this.g.copied.set(e.id, from);
+      }
+      return;
+    }
     if (tag === 'PLAYER_LEADERBOARD_PLACE') {
       const ps = this.players();
       if (ps && e.id === ps[0].get('HERO_ENTITY') && /^\d+$/.test(nw)) this.g.place = parseInt(nw, 10);
@@ -137,6 +145,12 @@ class Reader {
   _choice(log, c) {
     if (c.type !== 'GENERAL' || this.turn % 2 === 0 || c.chosen.length !== 1 || c.options.length < 2) return;
     if (this.g.player && c.player !== this.g.player) return;
+    if (c.source !== null) {  // a card taken from a Discover opened by a played card
+      const e = log.entity(c.chosen[0]);
+      const minion = e.cardtype === 'MINION';
+      this.g.found.push({ round: Math.floor(this.turn / 2) + 1, source: c.source, card: baseId(e.cardId),
+                          atk: minion ? e.get('ATK') : null, hp: minion ? e.get('HEALTH') - e.get('DAMAGE') : null });
+    }
     const ents = c.options.map(id => log.entity(id));
     if (ents.some(e => e.cardtype !== 'MINION')) return;
     const source = c.source !== null ? baseId(log.entity(c.source).cardId) : '';
@@ -199,7 +213,7 @@ class Reader {
       this.openPlay = { round: Math.floor(this.turn / 2) + 1, seq: this.seq, card: baseId(e.cardId), kind: e.cardtype,
                         handStats: [e.get('ATK'), e.get('HEALTH') - e.get('DAMAGE')], boardBefore: board,
                         targetIndex: target, magnetizedTo: null, position: null, entity: e.id, run: this.run,
-                        creator: e.get('CREATOR') };
+                        creator: e.get('CREATOR'), found: [] };
       this.lastWasPlay = e.cardtype !== 'HERO_POWER';
     } else {
       const p = this.openPlay;
@@ -292,7 +306,8 @@ export function readGames(files) {
     // Skip other game modes before the (slower) entity replay.
     if (!rg.lines.some(([, kind, body]) => kind === 'Game' && body.trim() === 'GameType=GT_BATTLEGROUNDS')) continue;
     const log = new PowerLog();
-    const game = { source: rg.source, build: 0, player: localName(rg), combats: [], plays: [], picks: [], reconnect: rg.reconnect,
+    const game = { source: rg.source, build: 0, player: localName(rg), combats: [], plays: [], picks: [],
+                   found: [], copied: new Map(), reconnect: rg.reconnect,
                    start: '', complete: false, place: 0, hero: '', cardChanges: [] };
     const reader = new Reader(log, game);
     rg.run(log);
@@ -313,7 +328,36 @@ export function readGames(files) {
     }
     out.push(game);
   }
-  return mergeReconnects(out);
+  const games = mergeReconnects(out);
+  for (const g of games) {
+    attachFound(g);
+    attachOrigins(g);
+    delete g.copied;  // only needed here
+  }
+  return games;
+}
+
+/** Give each play the cards taken from the Discovers it opened. */
+function attachFound(game) {
+  const plays = new Map(game.plays.map(p => [`${p.round}:${p.entity}`, p]));
+  for (const f of game.found) {
+    const p = plays.get(`${f.round}:${f.source}`);
+    if (p) p.found.push({ card: f.card, atk: f.atk, hp: f.hp });
+  }
+}
+
+/** Mark each minion with its first entity, so a minion can be followed across rounds. */
+function attachOrigins(game) {
+  const root = e => {
+    const seen = new Set();
+    while (game.copied.has(e) && !seen.has(e)) {
+      seen.add(e);
+      e = game.copied.get(e);
+    }
+    return e;
+  };
+  for (const c of game.combats) for (const m of c.me.board) m.origin = root(m.entity);
+  for (const k of game.picks) for (const m of k.options) m.origin = root(m.entity);
 }
 
 /** Join a game with the reconnect that continues it (same player, later rounds). */
@@ -328,6 +372,8 @@ export function mergeReconnects(games) {
       for (const p of g.plays) p.run += lastRun;
       prev.plays.push(...g.plays);
       prev.picks.push(...g.picks);
+      prev.found.push(...g.found);
+      for (const [k, v] of g.copied) if (!prev.copied.has(k)) prev.copied.set(k, v);
       prev.source += ' + ' + g.source;
       prev.complete = g.complete;
       prev.place = g.place || prev.place;

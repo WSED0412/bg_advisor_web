@@ -10,8 +10,8 @@
 import { ME, SceneError, build } from './scene.js';
 import { card, hasCard, nameOf } from './cards.js';
 import { combatScene, minionScene } from './bglog.js';
-import { grade, isHopeless, rankKey, cmpKey, sortBest, sameOutcome } from './scoring.js';
-import { A_MAGNETIZE, A_PLAY, N_BOARD, N_POS, StepError, applySteps } from './simcore.js';
+import { grade, isHopeless, rankKey, cmpKey, sortBest, sameOutcome, outcomeOf } from './scoring.js';
+import { A_MAGNETIZE, A_PLAY, N_BOARD, N_POS, StepError, applySteps, merge } from './simcore.js';
 import { permutations } from './positioning.js';
 
 export const MAX_ORDER_CARDS = 5;
@@ -75,12 +75,20 @@ function setup(engine, plays, combat, notes) {
   return { g, me, ent, hidOf };
 }
 
+/** 'minion' or 'spell' for a hand card the engine knows, else null. */
+function handKind(cid) {
+  const kind = (card(cid) || {}).kind || '';
+  return kind === 'minion' ? 'minion' : kind.includes('spell') ? 'spell' : null;
+}
+
 function playSteps(p, hid, { target = null, magnet = null, pos = null } = {}) {
   let steps;
   if (p.kind === 'HERO_POWER') steps = [['power', 0]];
-  else if (magnet !== null) return [['magnetize', hid, magnet]];
+  else if (magnet !== null) steps = [['magnetize', hid, magnet]];
   else steps = [['play', hid, pos]];
-  if (target !== null) steps.push(['target', target]);
+  if (target !== null && magnet === null) steps.push(['target', target]);
+  // Discovers it opened: take the cards really taken.
+  if (p.found && p.found.length) steps.push(['discover', p.found.map(f => ({ ...f, kind: handKind(f.card) }))]);
   return steps;
 }
 
@@ -231,21 +239,41 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
   }
 }
 
-// ---------------------------------------------------------------- picks (power this round)
+// ---------------------------------------------------------------- picks (power over the next rounds)
+
+export const MAX_PICK_ROUNDS = 3;
+
+const raw = o => ({ n: o.n, win_a: o.win, tie: o.tie, win_b: o.loss,
+                    avg_damage_by_a: o.dmg_dealt, avg_damage_by_b: o.dmg_taken });
+
+/** [combat, slot] of the taken minion: from its first fight, while it stays on the board. */
+export function pickSpans(pick, combats) {
+  const chosen = pick.options.find(o => o.entity === pick.chosen);
+  const origin = chosen.origin || chosen.entity;
+  const spans = [];
+  for (const c of combats) {
+    if (c.round < pick.round) continue;
+    const slot = c.me.board.findIndex(m => m.entity === pick.chosen || (m.origin || m.entity) === origin);
+    if (slot < 0) {
+      if (spans.length) break;
+      continue;
+    }
+    spans.push([c, slot]);
+    if (spans.length === MAX_PICK_ROUNDS) break;
+  }
+  return spans;
+}
 
 /**
- * A bought or Discovered minion against the other options, by this round's combat only: the
- * taken minion is replaced, in its slot of the warband that fought, by each option with the
- * same later buffs. Battlecries and the value in later rounds are not counted.
+ * A bought or Discovered minion against the other options, by the combats it fought: in each
+ * of its first MAX_PICK_ROUNDS fights, the taken minion is replaced, in its slot of the warband
+ * that fought, by each option with the same buffs it had gained by then. The fights are added
+ * up. Battlecries are not counted.
  */
-export async function scorePick(engine, sim, pick, combat, n = 1000) {
-  const board = combat.me.board;
-  const slot = board.findIndex(m => m.entity === pick.chosen);
-  if (slot < 0) throw new Skip('pick_not_on_board');
+export async function scorePick(engine, sim, pick, combats, n = 1000) {
+  const spans = pickSpans(pick, combats);
+  if (!spans.length) throw new Skip('pick_not_on_board');
   const chosen = pick.options.find(o => o.entity === pick.chosen);
-  const onBoard = board[slot];
-  const dAtk = onBoard.atk - chosen.atk, dHp = onBoard.hp - chosen.hp;
-  const gained = onBoard.keywords.filter(k => !chosen.keywords.includes(k));
 
   const notes = [];
   const results = new Map(), labels = new Map(), opts = new Map(), seen = new Map();
@@ -258,27 +286,38 @@ export async function scorePick(engine, sim, pick, combat, n = 1000) {
     const key = [o.card, o.atk, o.hp, [...o.keywords].sort().join()].join('|');
     if (seen.has(key)) { results.set(id, results.get(seen.get(key))); continue; }  // the same minion twice
     seen.set(key, id);
-    const sc = combatScene(combat);
-    sc.me.board[slot] = { card: o.card, atk: Math.max(0, o.atk + dAtk), hp: Math.max(1, o.hp + dHp),
-                          keywords: [...new Set([...o.keywords, ...gained])].sort() };
-    let g;
-    try {
-      g = build(engine, sc, notes);
-    } catch (e) {
-      if (!(e instanceof SceneError)) throw e;
-      results.set(id, e.message);
-      continue;
+    let outs = [];
+    for (const [combat, slot] of spans) {
+      const onBoard = combat.me.board[slot];
+      const dAtk = onBoard.atk - chosen.atk, dHp = onBoard.hp - chosen.hp;
+      const gained = onBoard.keywords.filter(k => !chosen.keywords.includes(k));
+      const sc = combatScene(combat);
+      sc.me.board[slot] = { card: o.card, atk: Math.max(0, o.atk + dAtk), hp: Math.max(1, o.hp + dHp),
+                            keywords: [...new Set([...o.keywords, ...gained])].sort() };
+      let g;
+      try {
+        g = build(engine, sc, notes);
+      } catch (e) {
+        if (!(e instanceof SceneError)) throw e;
+        outs = e.message;
+        break;
+      }
+      try {
+        const r = (await sim.run(g, [{ id, order: combat.me.board.map((_, k) => k) }], n)).get(id);
+        if (typeof r === 'string') { outs = r; break; }
+        outs.push(r);
+      } finally {
+        g.free();
+      }
     }
-    try {
-      const r = await sim.run(g, [{ id, order: board.map((_, k) => k) }], n);
-      results.set(id, r.get(id));
-    } finally {
-      g.free();
-    }
+    results.set(id, typeof outs === 'string' ? outs : outcomeOf(merge(outs.map(raw))));
   }
   const mineId = String(pick.options.findIndex(o => o.entity === pick.chosen));
-  const title = pick.kind === 'buy' ? '買哪隻（本回合戰力）' : '發現哪張（本回合戰力）';
+  const k = spans.length;
+  const title = pick.kind === 'buy' ? `買哪隻（${k} 回合戰力）` : `發現哪張（${k} 回合戰力）`;
   const uniq = [];
   for (const n2 of notes) if (!uniq.some(u => u.code === n2.code && u.card === n2.card)) uniq.push(n2);
-  return finish(pick.kind, pick.round, { title, card: pick.source || null }, labels, opts, results, mineId, uniq);
+  const rep = finish(pick.kind, pick.round, { title, card: pick.source || null }, labels, opts, results, mineId, uniq);
+  rep.span = spans.map(([c]) => c.round);
+  return rep;
 }

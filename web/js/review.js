@@ -96,7 +96,8 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
     }
     const plays = game.plays.filter(p => p.round === rnd);
     const picks = (game.picks || []).filter(k => k.round === rnd);
-    for (const rep of await reviewDecisions(engine, sim, plays, combat, prec.dec, rr.skipped, picks)) {
+    const later = game.combats.filter(c => c.round >= rnd);
+    for (const rep of await reviewDecisions(engine, sim, plays, combat, prec.dec, rr.skipped, picks, later)) {
       rr.decisions.push({
         kind: rep.kind, title: rep.title, card: rep.card || null, cards: rep.cards || null,
         gap: rep.grade ? rep.grade.gap : null, mode: rep.grade ? rep.grade.mode : null,
@@ -106,7 +107,7 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
         mine: rep.mine.label, best: rep.best.label,
         mine_outcome: outcomeDict(rep.mine.outcome), best_outcome: outcomeDict(rep.best.outcome),
         options: rep.options.slice(0, 6).map(o => ({ label: o.label, opt: o.opt, mine: o === rep.mine, outcome: outcomeDict(o.outcome) })),
-        notes: rep.notes,
+        notes: rep.notes, ...(rep.span ? { span: rep.span } : {}),
       });
     }
   }
@@ -142,7 +143,7 @@ async function reviewPositioning(engine, sim, combat, prec, rr) {
   return rep;
 }
 
-async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = []) {
+async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = [], later = []) {
   const reports = [];
   const tryScore = async (subject, fn) => {
     try {
@@ -171,14 +172,45 @@ async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = [
       await tryScore({ kind: 'order', cards: run.map(p => p.card) }, () => scoreOrder(engine, sim, run, combat, n));
     }
   }
-  // Picks: this round's power only, shown for reference (not in averages or mistakes).
+  // Picks: power in the combats that followed, shown for reference (not in averages).
   for (const k of picks) {
-    await tryScore({ kind: k.kind, card: k.source || null }, () => scorePick(engine, sim, k, combat, n));
+    await tryScore({ kind: k.kind, card: k.source || null }, () => scorePick(engine, sim, k, later, n));
   }
   return reports;
 }
 
 export const PICK_KINDS = ['buy', 'discover'];
+
+// A common leveling pace: the Tavern tier most players have reached by a round. Being below
+// it is not a mistake by itself; it is pointed out only in rounds that were lost.
+const PACE = [[11, 6], [9, 5], [7, 4], [5, 3], [2, 2]];
+export const typicalTier = rnd => (PACE.find(([r]) => rnd >= r) || [0, 1])[1];
+const eqOf = o => (o ? o.win + 0.5 * o.tie : null);
+
+/** The lost combats, most damage first, with what the simulation says about each. */
+function losses(result) {
+  const out = [];
+  for (const r of result.rounds) {
+    if (r.result !== 'opp') continue;
+    const eq = eqOf(r.sim_outcome);
+    const best = r.positioning ? eqOf(r.positioning.best_outcome) : eq;
+    let cause;
+    if (eq === null) cause = 'unknown';
+    else if (best - eq >= 0.10) cause = 'positioning';
+    else if (best < 0.30) cause = 'weak';
+    else if (eq >= 0.50) cause = 'unlucky';
+    else cause = 'close';
+    const myTier = r.my_tier || 0;
+    out.push({ round: r.round, damage: r.damage || 0, equity: eq, best_equity: best, cause,
+               my_tier: myTier, opp_tier: r.opp_tier || 0, behind: !!myTier && myTier < typicalTier(r.round) });
+  }
+  return out.sort((a, b) => b.damage - a.damage || a.round - b.round);
+}
+
+const tempoOf = result => result.rounds.filter(r => r.my_tier).map(r => ({
+  round: r.round, my_tier: r.my_tier, opp_tier: r.opp_tier || 0, typical: typicalTier(r.round),
+  health: r.my_health ?? null, result: r.result, damage: r.damage || 0,
+}));
 
 function summarize(result) {
   const pos = result.rounds.filter(r => r.positioning).map(r => r.positioning.score);
@@ -191,7 +223,10 @@ function summarize(result) {
       .map(d => ({ round: r.round, what: d.title, kind: d.kind, card: d.card, cards: d.cards, score: d.score }))),
   ];
   const avg = xs => pyRound(xs.reduce((a, b) => a + b, 0) / xs.length);
+  const ls = losses(result);
   result.summary = {
+    losses: ls.slice(0, 3), damage_taken: ls.reduce((a, x) => a + x.damage, 0), tempo: tempoOf(result),
+    behind_rounds: ls.filter(x => x.behind).map(x => x.round).sort((a, b) => a - b),
     positioning_avg: pos.length ? avg(pos) : null, positioning_n: pos.length,
     decisions_avg: decs.length ? avg(decs.map(d => d.score)) : null, decisions_n: decs.length,
     misplays: misplays.sort((a, b) => a.round - b.round),

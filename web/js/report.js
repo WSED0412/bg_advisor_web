@@ -169,8 +169,13 @@ const notes2 = ns => (ns || []).map(n => `<div class="note">${esc(t('r.note', { 
 const PICK_KINDS = ['buy', 'discover'];
 
 function subject(d, withCards = false) {
-  if (d.kind === 'buy') return t('d.buy');
-  if (d.kind === 'discover') return d.card ? t('d.discoverFrom', { card: card(d.card) }) : t('d.discover');
+  if (d.kind === 'buy' || d.kind === 'discover') {
+    // Older reports (one round only) carry no span.
+    const k = d.span ? d.span.length : ('score' in d ? 1 : 0);
+    const sfx = k ? 'N' : 'Plain';
+    if (d.kind === 'buy') return t('d.buy' + sfx, { k });
+    return d.card ? t('d.discoverFrom' + sfx, { card: card(d.card), k }) : t('d.discover' + sfx, { k });
+  }
   if (d.kind === 'target') return t('d.target', { card: card(d.card) });
   if (d.kind === 'magnetize') return t('d.magnetize', { card: card(d.card) });
   if (d.kind === 'order') {
@@ -257,6 +262,35 @@ function round2(r) {
 /** The hero shown for a report (format 1 stored a Chinese name). */
 export const heroName = res => (res.format >= 2 ? card(res.hero) : res.hero_name);
 
+
+/** "Where this game was lost": the combats with the most damage taken. */
+function lossesHtml(s) {
+  const ls = s.losses || [];
+  if (!ls.length) return '';
+  const items = ls.map(x => {
+    const eq = x.equity === null || x.equity === undefined ? '' : t('r.lossEq', { eq: pct(x.equity) });
+    const tiers = t('r.lossTiers', { mine: x.my_tier, opp: x.opp_tier }) + (x.behind ? t('r.lossBehind') : '') + t('r.lossTiersEnd');
+    return `<li><a href="#" data-round="${x.round}">${esc(t('r.lossRound', { round: x.round }))}</a> `
+      + `${esc(t('r.lossDmg', { dmg: x.damage }) + eq + t('r.colon') + t(`cause.${x.cause}`))}`
+      + ` <span class="mute small">${esc(tiers)}</span></li>`;
+  }).join('');
+  return `<h3>${esc(t('r.losses'))} <span class="mute small">${esc(t('r.lossesSub', { dmg: s.damage_taken || 0 }))}</span></h3><ul>${items}</ul>`;
+}
+
+/** Tavern tier per round against the opponent's and a common pace. */
+function tempoHtml(s) {
+  const tp = s.tempo || [];
+  if (!tp.length) return '';
+  const row = (label, cells) => `<tr><th>${esc(label)}</th>${cells}</tr>`;
+  return `<h3>${esc(t('r.tempo'))}</h3><div class="tablewrap"><table class="tempo">`
+    + row(t('r.tempoRound'), tp.map(x => `<th>${x.round}</th>`).join(''))
+    + row(t('r.tempoMine'), tp.map(x => `<td${x.my_tier < x.typical ? ' class="behind"' : ''}>${x.my_tier}</td>`).join(''))
+    + row(t('r.tempoOpp'), tp.map(x => `<td>${x.opp_tier || '—'}</td>`).join(''))
+    + row(t('r.tempoTypical'), tp.map(x => `<td class="mute">${x.typical}</td>`).join(''))
+    + row(t('r.tempoHealth'), tp.map(x => `<td>${x.health ?? '—'}</td>`).join(''))
+    + `</table></div><p class="note">${esc(t('r.tempoNote'))}</p>`;
+}
+
 export function renderGame(res) {
   if (!(res.format >= 2)) return renderGameLegacy(res);
   const s = res.summary || {};
@@ -288,7 +322,7 @@ export function renderGame(res) {
     + `<div class="mute small">${esc(res.date)}・${esc(res.player)}・${esc(t('r.client', { build: res.build }))}</div></div>`
     + `<div class="place ${placeCls(place)}">${esc(place ? t('r.place', { place }) : t('r.placeUnknown'))}</div></div>`
     + `<div class="tiles">${tiles}</div><div class="strip">${strip}</div>`
-    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${warn}</section>`
+    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${lossesHtml(s)}${tempoHtml(s)}${warn}</section>`
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
     + `<p class="note">${esc(t('r.pickFooter'))}</p>`

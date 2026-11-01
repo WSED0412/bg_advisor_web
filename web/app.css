@@ -58,6 +58,9 @@ display:flex;gap:6px;align-items:center}
 .bar i{display:block;height:100%}
 .bw{background:var(--win)}.bt{background:var(--tie)}.bl{background:var(--loss)}
 .tablewrap{overflow-x:auto}
+table.tempo td,table.tempo th{text-align:center;white-space:nowrap}
+table.tempo th:first-child{text-align:left}
+table.tempo td.behind{color:var(--bad);font-weight:700}
 table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 tr.mine td{font-weight:600}tr.best td{background:var(--best)}
