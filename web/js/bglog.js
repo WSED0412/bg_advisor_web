@@ -8,10 +8,11 @@
 //   Start of Combat effect, so that is where a combat is captured.
 
 import { PowerLog, iterGames } from './powerlog.js';
-import { card as cardOf } from './cards.js';
+import { card as cardOf, baseId } from './cards.js';
 
 const KW_TAGS = ['TAUNT', 'DIVINE_SHIELD', 'REBORN', 'POISONOUS', 'VENOMOUS', 'STEALTH', 'CLEAVE', 'IMMUNE'];
 const PLAYABLE = new Set(['MINION', 'BATTLEGROUND_SPELL', 'SPELL']);
+const BOB = 'TB_BaconShopBob';
 const BREAKERS = ['TB_BaconShop_DragBuy', 'TB_BaconShop_DragSell', 'TB_BaconShop_8p_Reroll',
   'TB_BaconShopTechUp', 'BG36_Button_DarkGift', 'TB_BaconShopLockAll'];
 
@@ -20,7 +21,7 @@ export function minionOf(e) {
   const wf = e.get('WINDFURY');
   if (wf >= 3 || e.get('MEGA_WINDFURY')) kws.push('MEGA_WINDFURY');
   else if (wf) kws.push('WINDFURY');
-  return { card: e.cardId, atk: e.get('ATK'), hp: e.get('HEALTH') - e.get('DAMAGE'), keywords: kws, entity: e.id };
+  return { card: baseId(e.cardId), atk: e.get('ATK'), hp: e.get('HEALTH') - e.get('DAMAGE'), keywords: kws, entity: e.id };
 }
 
 export const minionScene = m => ({ card: m.card, atk: m.atk, hp: Math.max(1, m.hp), keywords: m.keywords });
@@ -41,6 +42,9 @@ class Reader {
     this.seq = 0;
     this.run = 0;
     this.lastWasPlay = false;
+    // Some clients (255790) place the opponent's hero and warband only after MAIN_START: until
+    // the first attack, an incomplete snapshot is taken again after each top-level block.
+    this.snapOpen = false;
     log.onTag((l, e, tag, old, nw) => this._tag(l, e, tag, old, nw));
     log.onBlock((l, b, start) => this._block(l, b, start));
   }
@@ -72,7 +76,7 @@ class Reader {
       && !e.cardId.startsWith('BG30_Trinket_')).map(e => e.cardId);  // unpicked placeholders
     const board = this.log.inZone(ctl, 'PLAY', 'MINION').map(minionOf);
     const tier = player.get('PLAYER_TECH_LEVEL') || hero.get('PLAYER_TECH_LEVEL');
-    return { name, hero: hero.cardId, heroPower: power ? power.cardId : '',
+    return { name, hero: baseId(hero.cardId), heroPower: power ? baseId(power.cardId) : '',
              health: hero.get('HEALTH') - hero.get('DAMAGE'), armor: hero.get('ARMOR'), tier, trinkets, board };
   }
 
@@ -99,7 +103,9 @@ class Reader {
                        opp: this.side(opp, log.lastName.get(opp.id) || ''), winner: '', damage: 0 };
       this.g.combats.push(combat);
       this.pending = [combat, this.heroLife(me), this.heroLife(opp)];
+      this.snapOpen = true;
     } else if (tag === 'TURN') {
+      this.snapOpen = false;
       if (this.pending) this.finishCombat();
       this.lastWasPlay = false;
     }
@@ -118,7 +124,35 @@ class Reader {
     else combat.winner = 'tie';
   }
 
+  /** Retake a combat snapshot that missed the opponent's hero or warband. */
+  completeSnapshot() {
+    let [combat, myLife, oppLife] = this.pending;
+    if (combat.opp.hero !== BOB && combat.opp.board.length && combat.me.board.length) {
+      this.snapOpen = false;
+      return;
+    }
+    const ps = this.players();
+    if (!ps) return;
+    const [me, opp] = ps;
+    if (this.log.entity(opp.get('HERO_ENTITY')).cardId === BOB) return;  // not placed yet
+    const side = this.side(opp, this.log.lastName.get(opp.id) || combat.opp.name);
+    if (side.board.length || !combat.opp.board.length) {
+      combat.opp = side;
+      oppLife = this.heroLife(opp);
+    }
+    if (!combat.me.board.length) {
+      combat.me = this.side(me, combat.me.name);
+      myLife = this.heroLife(me);
+    }
+    this.pending = [combat, myLife, oppLife];
+  }
+
   _block(log, b, start) {
+    if (this.turn % 2 === 0 && this.snapOpen && this.pending) {
+      if (start && b.type === 'ATTACK') this.snapOpen = false;  // the fight has begun
+      else if (!start && !log.blocks.length) this.completeSnapshot();
+      return;
+    }
     if (this.turn % 2 === 0 || log.blocks.length > (start ? 1 : 0)) return;  // top-level recruit blocks
     if (b.type !== 'PLAY' || b.entity === null) return;
     const ps = this.players();
@@ -141,7 +175,7 @@ class Reader {
       }
       if (!this.lastWasPlay || e.cardtype === 'HERO_POWER') this.run += 1;
       this.seq += 1;
-      this.openPlay = { round: Math.floor(this.turn / 2) + 1, seq: this.seq, card: e.cardId, kind: e.cardtype,
+      this.openPlay = { round: Math.floor(this.turn / 2) + 1, seq: this.seq, card: baseId(e.cardId), kind: e.cardtype,
                         handStats: [e.get('ATK'), e.get('HEALTH') - e.get('DAMAGE')], boardBefore: board,
                         targetIndex: target, magnetizedTo: null, position: null, entity: e.id, run: this.run };
       this.lastWasPlay = e.cardtype !== 'HERO_POWER';
@@ -178,8 +212,9 @@ export function cardChanges(lines) {
   const flush = () => {
     if (cur && tags.CARDTYPE === 'MINION') {
       const k = [parseInt(tags.ATK || 0, 10), parseInt(tags.HEALTH || 0, 10), parseInt(tags.TECH_LEVEL || 0, 10)].join(',');
-      if (!seen.has(cur)) seen.set(cur, new Map());
-      const m = seen.get(cur);
+      const id = baseId(cur);
+      if (!seen.has(id)) seen.set(id, new Map());
+      const m = seen.get(id);
       m.set(k, (m.get(k) || 0) + 1);
     }
   };

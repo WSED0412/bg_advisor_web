@@ -1,6 +1,6 @@
 // Build a TavernGym game that holds a given scene (my warband vs one opponent).
 //
-// Seat 0 is me, seat 1 the opponent. `atk`/`hp` are the numbers shown in the game, auras
+// Seat 0 is me, seat 1 the opponent. Notes are {code, card} (rendered by the page). `atk`/`hp` are the numbers shown in the game, auras
 // included; TavernGym adds board auras itself, so after setup the stored stats are corrected
 // until TavernGym shows the same numbers (otherwise an aura would count twice).
 
@@ -57,7 +57,7 @@ function setupPlayer(g, p, side, notes) {
       debug(g, { cmd: 'set_hero', p, hero: resolve(hero, 'hero').id });
       heroSet = true;
     } catch {
-      notes.push(`模擬器不認得英雄「${nameOf(hero)}」，改用沒有戰鬥效果的英雄`);
+      notes.push({ code: 'unknown_hero', card: hero });
     }
   }
   if (!heroSet) debug(g, { cmd: 'set_hero', p, hero: NEUTRAL_HERO });
@@ -72,7 +72,7 @@ function setupPlayer(g, p, side, notes) {
       debug(g, { cmd: 'give_trinket', p, card: cardId(t) });
     } catch (e) {
       if (!(e instanceof SceneError)) throw e;
-      notes.push(`模擬器不認得飾品「${nameOf(t)}」，沒有放進模擬`);
+      notes.push({ code: 'unknown_trinket', card: t });
     }
   }
 

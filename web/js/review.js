@@ -45,26 +45,30 @@ function describeChange(c) {
 }
 
 /**
- * Review one game. `progress(done, total, text)` is called as rounds finish.
+ * Review one game. `progress(done, total, round)` is called as rounds start.
+ *
+ * Report format 2 is language-neutral: cards are ids, skips and notes are codes, and the page
+ * renders them in the chosen language. The Chinese text fields of format 1 are kept as well.
  */
 export async function reviewGame(engine, sim, game, prec = PRECISION.full, progress = () => {}, fallbackDay = '') {
   const result = {
     key: gameKey(game), date: gameDate(game, fallbackDay), player: game.player, build: game.build,
     hero: game.hero, hero_name: nameOf(game.hero), place: game.place, complete: game.complete,
     source: game.source, rounds: [], card_changes: game.cardChanges.map(describeChange),
+    format: 2, changes: game.cardChanges.map(c => ({ card: c.card, engine: c.engine, client: c.client })),
   };
   const changed = new Map(game.cardChanges.map(c => [c.card, c]));
   const rounds = [...new Set([...game.combats.map(c => c.round), ...game.plays.map(p => p.round)])].sort((a, b) => a - b);
   let done = 0;
   for (const rnd of rounds) {
-    progress(done, rounds.length, `第 ${rnd} 回合`);
+    progress(done, rounds.length, rnd);
     const combat = game.combats.find(c => c.round === rnd);
     const rr = { round: rnd, decisions: [] };
     result.rounds.push(rr);
     done += 1;
     if (!combat) continue;
     Object.assign(rr, {
-      opponent: combat.opp.name || '幽靈（已淘汰玩家）', opp_hero: combat.opp.hero,
+      opponent: combat.opp.name || '幽靈（已淘汰玩家）', ghost: !combat.opp.name, opp_hero: combat.opp.hero,
       opp_hero_name: nameOf(combat.opp.hero), result: combat.winner, damage: combat.damage,
       my_board: minions(combat.me), opp_board: minions(combat.opp),
       my_health: combat.me.health + combat.me.armor, my_tier: combat.me.tier, opp_tier: combat.opp.tier,
@@ -72,41 +76,47 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
     });
     const hit = [...new Set([...combat.me.board, ...combat.opp.board].map(m => m.card))]
       .filter(c => changed.has(c)).map(c => nameOf(c)).sort();
-    if (hit.length) rr.changed_cards = hit;
+    if (hit.length) {
+      rr.changed_cards = hit;
+      rr.changed_ids = [...new Set([...combat.me.board, ...combat.opp.board].map(m => m.card))].filter(c => changed.has(c));
+    }
 
     const pos = await reviewPositioning(engine, sim, combat, prec, rr);
     if (pos) {
       rr.positioning = {
         score: pos.grade.score, verdict: pos.grade.verdict, mode: pos.grade.mode, gap: pos.grade.gap,
         describe: describeGrade(pos.grade), mine: pos.mine.names, best: pos.best.names,
+        mine_cards: pos.mine.cards, best_cards: pos.best.cards,
         mine_outcome: outcomeDict(pos.mine.outcome), best_outcome: outcomeDict(pos.best.outcome),
         arrangements: pos.arrangementsTotal,
         alternatives: distinct(pos, 4).map(([a, k]) => ({
-          names: a.names, count: k, mine: a.order.join() === pos.mine.order.join(), outcome: outcomeDict(a.outcome),
+          names: a.names, cards: a.cards, count: k, mine: a.order.join() === pos.mine.order.join(), outcome: outcomeDict(a.outcome),
         })),
       };
     }
     const plays = game.plays.filter(p => p.round === rnd);
     for (const rep of await reviewDecisions(engine, sim, plays, combat, prec.dec, rr.skipped)) {
       rr.decisions.push({
-        kind: rep.kind, title: rep.title, score: rep.grade ? rep.grade.score : null,
+        kind: rep.kind, title: rep.title, card: rep.card || null, cards: rep.cards || null,
+        gap: rep.grade ? rep.grade.gap : null, mode: rep.grade ? rep.grade.mode : null,
+        score: rep.grade ? rep.grade.score : null,
         verdict: rep.grade ? rep.grade.verdict : '不影響這場戰鬥',
         describe: rep.grade ? describeGrade(rep.grade) : '',
         mine: rep.mine.label, best: rep.best.label,
         mine_outcome: outcomeDict(rep.mine.outcome), best_outcome: outcomeDict(rep.best.outcome),
-        options: rep.options.slice(0, 6).map(o => ({ label: o.label, mine: o === rep.mine, outcome: outcomeDict(o.outcome) })),
+        options: rep.options.slice(0, 6).map(o => ({ label: o.label, opt: o.opt, mine: o === rep.mine, outcome: outcomeDict(o.outcome) })),
         notes: rep.notes,
       });
     }
   }
-  progress(rounds.length, rounds.length, '完成');
+  progress(rounds.length, rounds.length, null);
   summarize(result);
   return result;
 }
 
 async function reviewPositioning(engine, sim, combat, prec, rr) {
-  if (!combat.me.board.length) { rr.positioning_skip = '你場上沒有隨從'; return null; }
-  if (!combat.opp.board.length) { rr.positioning_skip = '對手場上沒有隨從'; return null; }
+  if (!combat.me.board.length) { rr.positioning_skip = '你場上沒有隨從'; rr.pos_skip = { code: 'no_my_minions' }; return null; }
+  if (!combat.opp.board.length) { rr.positioning_skip = '對手場上沒有隨從'; rr.pos_skip = { code: 'no_opp_minions' }; return null; }
   const notes = [];
   let g = null, rep;
   try {
@@ -115,6 +125,7 @@ async function reviewPositioning(engine, sim, combat, prec, rr) {
   } catch (e) {
     if (!(e instanceof SceneError) && !(e instanceof Error)) throw e;
     rr.positioning_skip = `無法模擬（${e.message}）`;
+    rr.pos_skip = { code: 'sim_failed', msg: e.message };
     return null;
   } finally {
     if (g) g.free();
@@ -124,6 +135,7 @@ async function reviewPositioning(engine, sim, combat, prec, rr) {
   rr.notes.push(...notes);
   if (rep.arrangementsTotal === 1) {
     rr.positioning_skip = '只有一種排法，不評分';
+    rr.pos_skip = { code: 'single_order' };
     return null;
   }
   return rep;
@@ -131,20 +143,20 @@ async function reviewPositioning(engine, sim, combat, prec, rr) {
 
 async function reviewDecisions(engine, sim, plays, combat, n, skipped) {
   const reports = [];
-  const tryScore = async (title, fn) => {
+  const tryScore = async (subject, fn) => {
     try {
       reports.push(await fn());
     } catch (e) {
       if (!(e instanceof Skip)) throw e;
-      skipped.push({ title, reason: e.message });
+      skipped.push({ ...subject, code: e.code, params: e.params });
     }
   };
   for (const p of plays) {
     if (p.targetIndex !== null) {
-      await tryScore(`${nameOf(p.card)} 的目標`, () => scoreTarget(engine, sim, p, combat, n));
+      await tryScore({ kind: 'target', card: p.card }, () => scoreTarget(engine, sim, p, combat, n));
     }
     if (p.kind === 'MINION' && isMagnetic(p.card)) {
-      await tryScore(`${nameOf(p.card)} 放哪裡`, () => scoreMagnetize(engine, sim, p, combat, n));
+      await tryScore({ kind: 'magnetize', card: p.card }, () => scoreMagnetize(engine, sim, p, combat, n));
     }
   }
   const runs = new Map();
@@ -155,8 +167,7 @@ async function reviewDecisions(engine, sim, plays, combat, n, skipped) {
   }
   for (const run of runs.values()) {
     if (run.length >= 2) {
-      const names = run.map(p => nameOf(p.card)).join(' → ');
-      await tryScore(`出牌順序（${names}）`, () => scoreOrder(engine, sim, run, combat, n));
+      await tryScore({ kind: 'order', cards: run.map(p => p.card) }, () => scoreOrder(engine, sim, run, combat, n));
     }
   }
   return reports;
@@ -167,9 +178,9 @@ function summarize(result) {
   const decs = result.rounds.flatMap(r => r.decisions).filter(d => d.score !== null);
   const misplays = [
     ...result.rounds.filter(r => r.positioning && r.positioning.verdict === '明顯失誤')
-      .map(r => ({ round: r.round, what: '站位', score: r.positioning.score })),
+      .map(r => ({ round: r.round, what: '站位', kind: 'positioning', score: r.positioning.score })),
     ...result.rounds.flatMap(r => r.decisions.filter(d => d.verdict === '明顯失誤')
-      .map(d => ({ round: r.round, what: d.title, score: d.score }))),
+      .map(d => ({ round: r.round, what: d.title, kind: d.kind, card: d.card, cards: d.cards, score: d.score }))),
   ];
   const avg = xs => pyRound(xs.reduce((a, b) => a + b, 0) / xs.length);
   result.summary = {

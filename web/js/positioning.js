@@ -56,6 +56,7 @@ const keyOf = o => o.join(',');
 export async function evaluateGame(sim, game, nFinal = 2000, nScreen = 200, keep = 24) {
   const t0 = performance.now();
   const names = boardNames(game);
+  const ids = game.view(ME).me.board.map(m => m.id);
   const stateJson = game.stateJson();
   const board = JSON.parse(stateJson).players[ME].board;
   if (!board.length) throw new Error('my warband is empty');
@@ -77,10 +78,10 @@ export async function evaluateGame(sim, game, nFinal = 2000, nScreen = 200, keep
   const final = await sim.run(stateJson, jobs(finalists), nFinal);
   const ok = finalists.filter(o => typeof final.get(keyOf(o)) !== 'string');
   if (!ok.some(o => keyOf(o) === keyOf(mineOrder))) {
-    throw new Error(`無法模擬你的站位（${final.get(keyOf(mineOrder))}）`);
+    throw new Error(`your order: ${final.get(keyOf(mineOrder))}`);
   }
   const hopeless = isHopeless(ok.map(o => final.get(keyOf(o))));
-  const arrs = sortBest(ok.map(o => ({ order: o, names: o.map(i => names[i]), outcome: final.get(keyOf(o)) })),
+  const arrs = sortBest(ok.map(o => ({ order: o, names: o.map(i => names[i]), cards: o.map(i => ids[i]), outcome: final.get(keyOf(o)) })),
     a => a.outcome, hopeless);
   const mine = arrs.find(a => keyOf(a.order) === keyOf(mineOrder));
   const best = cmpKey(rankKey(mine.outcome, hopeless), rankKey(arrs[0].outcome, hopeless)) === 0 ? mine : arrs[0];

@@ -4,9 +4,11 @@
 let byId = null;
 let byName = null;
 let tw = {};
+let skins = {};
 
-export function initCards(catalog, namesZhTW) {
+export function initCards(catalog, namesZhTW, heroSkins) {
   tw = namesZhTW || {};
+  skins = heroSkins || {};
   byId = new Map();
   byName = new Map();
   for (const c of catalog) {
@@ -58,4 +60,19 @@ export function nameOf(id) {
   if (tw[id]) return tw[id];
   const c = byId.get(id);
   return c ? c.name : id;
+}
+
+/**
+ * The card the simulator knows for a cosmetic variant: hero skins map to their base hero
+ * (data/hero_skins.json), other skinned cards (e.g. Hero Power tokens "..._SKIN_A_G") lose the
+ * _SKIN_ part when that names a known card.
+ */
+export function baseId(id) {
+  if (!id) return id;
+  if (skins[id]) return skins[id];
+  if (id.includes('_SKIN_')) {
+    const stripped = id.replace(/_SKIN_[A-Za-z0-9]+/g, '');
+    if (byId.has(stripped)) return stripped;
+  }
+  return id;
 }

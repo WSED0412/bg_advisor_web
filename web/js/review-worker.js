@@ -7,7 +7,7 @@
 //      {type: 'done', reviewed} | {type: 'error', message}
 
 import { compileEngine, Engine } from './engine.js';
-import { initCards, nameOf } from './cards.js';
+import { initCards } from './cards.js';
 import { readGames } from './bglog.js';
 import { SimPool } from './sim.js';
 import { PRECISION, gameKey, reviewGame } from './review.js';
@@ -19,8 +19,11 @@ function init() {
     ready = (async () => {
       module = await compileEngine();
       engine = await Engine.create(module);
-      const res = await fetch(new URL('../data/names_zhTW.json', import.meta.url));
-      initCards(engine.catalog(), res.ok ? await res.json() : {});
+      const json = async f => {
+        try { return await (await fetch(new URL(`../data/${f}`, import.meta.url))).json(); } catch { return {}; }
+      };
+      const [tw, skins] = await Promise.all([json('names_zhTW.json'), json('hero_skins.json')]);
+      initCards(engine.catalog(), tw, skins);
       sim = await SimPool.create(module);
     })();
   }
@@ -42,7 +45,7 @@ async function readText(entry) {
       await sleep(750);
     }
   }
-  throw new Error(`無法讀取 ${entry.source}：${last && last.message}`);
+  throw new Error(`${entry.source}: ${last && last.message}`);
 }
 
 function dayOf(ms) {
@@ -52,9 +55,9 @@ function dayOf(ms) {
 }
 
 async function review(msg) {
-  self.postMessage({ type: 'status', text: '載入模擬器…' });
+  self.postMessage({ type: 'status', code: 'status.loading' });
   await init();
-  self.postMessage({ type: 'status', text: '讀取紀錄檔…' });
+  self.postMessage({ type: 'status', code: 'status.reading' });
   const files = [];
   const days = new Map();
   for (const entry of msg.files) {
@@ -66,7 +69,7 @@ async function review(msg) {
   let games = readGames(files).filter(g => g.combats.length && (!msg.onlyComplete || g.complete));
   games = games.filter(g => !known.has(gameKey(g)));
   if (msg.limit) games = games.slice(-msg.limit);
-  self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g), hero: nameOf(g.hero) })) });
+  self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g), hero: g.hero })) });
 
   const prec = PRECISION[msg.precision] || PRECISION.full;
   let reviewed = 0;
@@ -74,8 +77,8 @@ async function review(msg) {
     if (engine.broken) engine = await Engine.create(module);
     const key = gameKey(g);
     const t0 = performance.now();
-    const result = await reviewGame(engine, sim, g, prec, (done, total, text) =>
-      self.postMessage({ type: 'progress', key, hero: nameOf(g.hero), done, total, text }),
+    const result = await reviewGame(engine, sim, g, prec, (done, total, round) =>
+      self.postMessage({ type: 'progress', key, hero: g.hero, done, total, round }),
       days.get(g.source.split(' + ')[0]) || '');
     result.seconds = Math.round((performance.now() - t0) / 1000);
     result.precision = msg.precision || 'full';
