@@ -180,6 +180,29 @@ function analyzeFiles(fileList) {
 const BRIDGE_PORTS = [47613, 47614, 47615, 47616, 47617];
 const PLUGIN_URL = 'plugin/BgAdvisorBridge.dll';
 
+/** -1, 0 or 1, comparing dotted versions ("0.1.0" < "0.10.0"). */
+function cmpVersion(a, b) {
+  const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return Math.sign(d);
+  }
+  return 0;
+}
+
+// plugin/version.json on this site: {"latest": newest plugin, "min": oldest one this page works with}.
+let pluginRelease = null;
+async function pluginReleaseInfo() {
+  if (!pluginRelease) {
+    try {
+      pluginRelease = await (await fetch('plugin/version.json', { cache: 'no-store' })).json();
+    } catch {
+      return {};  // offline or missing: no update check this time
+    }
+  }
+  return pluginRelease;
+}
+
 async function bridgeFetch(path) {
   const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store' });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -205,6 +228,16 @@ async function bridgeTick() {
     b.connected = true;
     b.error = '';
     b.logDirOk = st.logDirOk;
+    if (b.version !== st.version) {
+      const rel = await pluginReleaseInfo();
+      b.version = st.version;
+      b.latest = rel.latest || null;
+      b.min = rel.min || null;
+      b.outdated = !!rel.latest && cmpVersion(st.version, rel.latest) < 0;
+      b.tooOld = !!rel.min && cmpVersion(st.version, rel.min) < 0;
+      if (route().page === 'list') render();
+    }
+    if (b.tooOld) return;  // this page may not understand an old plugin: ask for the update first
     if (b.ends === null) {
       // First contact: review recent finished games without a report (like the folder backfill).
       b.ends = st.gameEnds;
@@ -280,8 +313,9 @@ function renderStatus() {
     text = p ? `正在分析 ${esc(p.hero)}：${esc(p.text)}（${p.done}/${p.total}）` : esc(state.status || '分析中…');
     if (p) text += `<span class="pbar"><i style="width:${(100 * p.done / Math.max(1, p.total)).toFixed(0)}%"></i></span>`;
   } else if (state.bridge && state.bridge.connected) {
-    dot = 'live';
-    text = '已連線 HDT 外掛' + (state.watcher ? `・監看中：${esc(state.dir.name)}` : '');
+    dot = state.bridge.tooOld ? '' : 'live';
+    text = '已連線 HDT 外掛' + (state.watcher ? `・監看中：${esc(state.dir.name)}` : '')
+      + (state.bridge.tooOld ? '・外掛需要更新' : state.bridge.outdated ? '・有新版外掛' : '');
   } else if (state.watcher) {
     dot = 'live';
     text = `監看中：${esc(state.dir.name)}`;
@@ -310,7 +344,13 @@ function setupCard() {
   if (b && b.connected) {
     const warn = b.logDirOk === false
       ? '<p class="warn">外掛找不到爐石的 Logs 資料夾，請確認 HDT 設定裡的爐石安裝路徑。</p>' : '';
-    return `<p>已連線 HDT 外掛：每局英雄戰場結束後會自動分析，不需要設定資料夾。</p>${warn}`
+    const steps = `<a href="${PLUGIN_URL}" download>下載新版外掛</a>，關閉 HDT，用它取代 `
+      + `<code>%AppData%\\HearthstoneDeckTracker\\Plugins\\BgAdvisorBridge.dll</code>`
+      + `（在新檔案上按右鍵 › 內容，勾選「解除封鎖」），再重新開啟 HDT。`;
+    const update = b.tooOld
+      ? `<div class="warn err">外掛版本太舊（${esc(b.version)}），這個網頁需要 ${esc(b.min)} 以上才能自動分析。${steps}</div>`
+      : b.outdated ? `<div class="warn">有新版外掛：${esc(b.version)} → ${esc(b.latest)}。${steps}</div>` : '';
+    return `<p>已連線 HDT 外掛（${esc(b.version || '?')}）：每局英雄戰場結束後會自動分析，不需要設定資料夾。</p>${update}${warn}`
       + `<div class="actions">${fileButton()}<button class="ghost" data-act="forget-bridge">不再使用外掛</button>${precisionToggle()}</div>`;
   }
   if (b) {

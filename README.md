@@ -34,6 +34,10 @@ Chrome、Edge、Brave、Firefox 都能用。
 外掛只在 `127.0.0.1` 上提供最近的 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
 自己編譯：`powershell -ExecutionPolicy Bypass -File pluginuild.ps1 -Install`（需要 Visual Studio Build Tools）。
 
+外掛很少需要更新：卡片資料、評分和介面都在網站上，網站更新後重新整理頁面即可。外掛真的出新版時，
+網頁連線時會比對 `web/plugin/version.json`，舊版會看到更新提示；低於 `min` 的版本會暫停自動分析並請你更新。
+發布新版外掛：改 `BridgeServer.cs` 的 `Version`，再執行 `pluginuild.ps1 -Publish`（不相容的改動加上 `-MinCompatible 新版本`）。
+
 爐石的 `log.config` 需開啟 `[Power]` 紀錄（大多數牌組追蹤器都會幫你設定）。
 
 ## 架構
