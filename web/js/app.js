@@ -207,8 +207,16 @@ function setupCard() {
     return `<p>上次使用的資料夾：<b>${esc(state.dir.name)}</b>。瀏覽器需要你再按一次才能讀取。</p>`
       + `<div class="actions"><button data-act="resume">繼續監看</button><button class="ghost" data-act="pick">更換資料夾</button>${fileButton()}</div>`;
   }
+  if (!canWatch() && navigator.brave) {
+    // Brave ships the File System Access API behind a flag.
+    return `<p>Brave 預設關閉了「讓網頁讀取資料夾」的功能，所以現在只能手動選擇或拖曳 Power.log。`
+      + `想要打完自動分析，可以開啟這個功能（只需要一次）：</p>`
+      + `<ol><li>在網址列輸入 <code>brave://flags/#file-system-access-api</code></li>`
+      + `<li>把「File System Access API」改成 <b>Enabled</b></li><li>按右下角的 <b>Relaunch</b> 重新啟動 Brave，再回到這個頁面</li></ol>`
+      + `<div class="actions">${fileButton(true)}</div>`;
+  }
   if (!canWatch()) {
-    return `<p>這個瀏覽器不支援自動監看資料夾（需要 Chrome 或 Edge）。可以在每局結束後，手動選擇或拖曳 Power.log 到這個頁面。</p>`
+    return `<p>這個瀏覽器不支援自動監看資料夾（需要 Chrome、Edge，或開啟設定的 Brave）。可以在每局結束後，手動選擇或拖曳 Power.log 到這個頁面。</p>`
       + `<div class="actions">${fileButton(true)}</div>`;
   }
   return `<p>第一次使用：選擇爐石安裝資料夾裡的 <b>Logs</b> 資料夾（通常是 <code>C:\\Program Files (x86)\\Hearthstone\\Logs</code>）。`

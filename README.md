@@ -19,7 +19,8 @@
 
 瀏覽器不允許網頁讀取 `Program Files` 裡的資料夾；如果選不了，網頁上有一次性的設定說明
 （把 Logs 搬到「文件」並在原處留一個連結）。也可以每局結束後手動選擇或拖曳 `Power.log`。
-其他瀏覽器只能用手動選檔。
+**Brave** 預設關閉這個功能：到 `brave://flags/#file-system-access-api` 改成 Enabled 並重新啟動即可；
+不開也能手動選檔。其他瀏覽器（Firefox、Safari）只能用手動選檔。
 
 爐石的 `log.config` 需開啟 `[Power]` 紀錄（大多數牌組追蹤器都會幫你設定）。
 
