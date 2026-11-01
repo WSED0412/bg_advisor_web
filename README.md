@@ -22,6 +22,18 @@
 **Brave** 預設關閉這個功能：到 `brave://flags/#file-system-access-api` 改成 Enabled 並重新啟動即可；
 不開也能手動選檔。其他瀏覽器（Firefox、Safari）只能用手動選檔。
 
+### 使用 Hearthstone Deck Tracker 的話：裝外掛最省事
+
+`plugin/` 是一個 HDT 外掛：每局英雄戰場結束後自動打開這局的報告，不需要選資料夾，也不用搬 Logs，
+Chrome、Edge、Brave、Firefox 都能用。
+
+1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
+2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「BG Advisor」。
+3. 按外掛的「開啟復盤網頁」，瀏覽器問「存取本機網路上的裝置」時按允許。
+
+外掛只在 `127.0.0.1` 上提供最近的 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
+自己編譯：`powershell -ExecutionPolicy Bypass -File pluginuild.ps1 -Install`（需要 Visual Studio Build Tools）。
+
 爐石的 `log.config` 需開啟 `[Power]` 紀錄（大多數牌組追蹤器都會幫你設定）。
 
 ## 架構
@@ -33,6 +45,7 @@
 | `web/js/scene.js`、`simcore.js`、`sim.js` | 重建局面、平行模擬（每個 Web Worker 一份模擬器） |
 | `web/js/scoring.js`、`positioning.js`、`decisions.js`、`review.js` | 評分 |
 | `web/js/watch.js`、`app.js`、`report.js`、`store.js` | 監看資料夾、介面、報告、IndexedDB |
+| `plugin/` | HDT 外掛（C#）：本機橋接伺服器，對局結束時打開網頁 |
 
 推上 `main` 後，GitHub Actions 會編譯 WebAssembly 並部署到 GitHub Pages。
 

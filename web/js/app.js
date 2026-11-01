@@ -170,6 +170,99 @@ function analyzeFiles(fileList) {
   if (files.length) review(files, { onlyComplete: false });
 }
 
+// ---------------------------------------------------------------- HDT plugin bridge
+//
+// The BG Advisor plugin for Hearthstone Deck Tracker serves the recent Power.log files on
+// 127.0.0.1 and opens this page at #/bridge/<port> when a game ends. The page then asks the
+// plugin every few seconds whether another game has ended. Only the plugin's ports are used,
+// and only after the plugin itself opened the page once (no local requests otherwise).
+
+const BRIDGE_PORTS = [47613, 47614, 47615, 47616, 47617];
+const PLUGIN_URL = 'plugin/BgAdvisorBridge.dll';
+
+async function bridgeFetch(path) {
+  const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r;
+}
+
+async function startBridge(port) {
+  if (state.bridgeTimer) clearInterval(state.bridgeTimer);
+  state.bridge = { port, connected: false, ends: null, error: '' };
+  await setKV('bridgePort', port);
+  bridgeTick();
+  state.bridgeTimer = setInterval(bridgeTick, POLL_MS);
+}
+
+let bridgeBusy = false;
+async function bridgeTick() {
+  const b = state.bridge;
+  if (bridgeBusy || !b) return;
+  bridgeBusy = true;
+  try {
+    const st = await (await bridgeFetch('/status')).json();
+    const wasConnected = b.connected;
+    b.connected = true;
+    b.error = '';
+    b.logDirOk = st.logDirOk;
+    if (b.ends === null) {
+      // First contact: review recent finished games without a report (like the folder backfill).
+      b.ends = st.gameEnds;
+      if (st.logDirOk) await bridgeReview(BACKFILL_GAMES);
+    } else if (st.gameEnds > b.ends) {
+      b.ends = st.gameEnds;
+      await new Promise(r => setTimeout(r, 2000));  // let the client finish the game's last lines
+      await bridgeReview(0);
+    }
+    if (!wasConnected && route().page === 'list') render();
+  } catch (e) {
+    const wasConnected = b.connected;
+    b.connected = false;
+    b.error = e.message;
+    if (wasConnected && route().page === 'list') render();
+  } finally {
+    bridgeBusy = false;
+    renderStatus();
+  }
+}
+
+async function bridgeReview(limit) {
+  const list = await (await bridgeFetch('/logs')).json();
+  const files = [];
+  for (const f of list.slice(-2)) {  // the log before may hold the start of a reconnected game
+    let blob = null;
+    // The file only grows; a smaller download was cut off on the way, so try again.
+    for (let i = 0; i < 3 && !(blob && blob.size >= f.size); i++) {
+      try {
+        blob = await (await bridgeFetch(`/log?source=${encodeURIComponent(f.source)}`)).blob();
+      } catch {
+        blob = null;
+      }
+    }
+    if (!blob || blob.size < f.size) throw new Error(`無法從外掛完整讀取 ${f.source}`);
+    files.push({ file: new File([blob], 'Power.log', { lastModified: Date.parse(f.modified) || Date.now() }), source: f.source });
+  }
+  if (files.length) review(files, { limit });
+}
+
+async function forgetBridge() {
+  if (state.bridgeTimer) clearInterval(state.bridgeTimer);
+  state.bridgeTimer = null;
+  state.bridge = null;
+  await setKV('bridgePort', null);
+  render();
+}
+
+/** #/bridge/<port>: opened by the plugin. */
+async function handleBridgeRoute() {
+  const m = /^#\/bridge\/(\d+)$/.exec(location.hash);
+  if (!m) return false;
+  const port = parseInt(m[1], 10);
+  history.replaceState(null, '', location.pathname + location.search + '#/');
+  if (BRIDGE_PORTS.includes(port)) await startBridge(port);
+  return true;
+}
+
 // ---------------------------------------------------------------- rendering
 
 function route() {
@@ -186,9 +279,14 @@ function renderStatus() {
     dot = 'busy';
     text = p ? `正在分析 ${esc(p.hero)}：${esc(p.text)}（${p.done}/${p.total}）` : esc(state.status || '分析中…');
     if (p) text += `<span class="pbar"><i style="width:${(100 * p.done / Math.max(1, p.total)).toFixed(0)}%"></i></span>`;
+  } else if (state.bridge && state.bridge.connected) {
+    dot = 'live';
+    text = '已連線 HDT 外掛' + (state.watcher ? `・監看中：${esc(state.dir.name)}` : '');
   } else if (state.watcher) {
     dot = 'live';
     text = `監看中：${esc(state.dir.name)}`;
+  } else if (state.bridge) {
+    text = '等待 HDT 外掛…';
   } else {
     text = state.dir ? '已暫停監看' : '尚未設定紀錄檔資料夾';
   }
@@ -198,7 +296,32 @@ function renderStatus() {
   err.textContent = state.error;
 }
 
+function pluginHelp(open = false) {
+  return `<details class="plugin"${open ? ' open' : ''}><summary>有用 Hearthstone Deck Tracker？裝外掛就不用設定資料夾</summary>`
+    + `<ol><li>下載 <a href="${PLUGIN_URL}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li>`
+    + `<li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li>`
+    + `<li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，再按一次「開啟復盤網頁」。</li>`
+    + `<li>瀏覽器問「允許存取本機網路上的裝置」時按允許。</li></ol>`
+    + `<p class="small mute">之後每局英雄戰場結束，HDT 會自動打開這局的報告。外掛只在本機 127.0.0.1 提供紀錄檔給這個網站，不會上傳任何東西。</p></details>`;
+}
+
 function setupCard() {
+  const b = state.bridge;
+  if (b && b.connected) {
+    const warn = b.logDirOk === false
+      ? '<p class="warn">外掛找不到爐石的 Logs 資料夾，請確認 HDT 設定裡的爐石安裝路徑。</p>' : '';
+    return `<p>已連線 HDT 外掛：每局英雄戰場結束後會自動分析，不需要設定資料夾。</p>${warn}`
+      + `<div class="actions">${fileButton()}<button class="ghost" data-act="forget-bridge">不再使用外掛</button>${precisionToggle()}</div>`;
+  }
+  if (b) {
+    return `<p>找不到 HDT 外掛（連接埠 ${b.port}）。請確認 Hearthstone Deck Tracker 有開著，而且「BG Advisor」外掛已啟用。`
+      + `如果瀏覽器問過「存取本機網路」而你按了封鎖，需要在網址列左邊的網站設定裡改回允許。</p>`
+      + `<div class="actions">${fileButton()}<button class="ghost" data-act="forget-bridge">不再使用外掛</button></div>`;
+  }
+  return folderOrBrowserCard() + (state.watcher ? '' : pluginHelp());
+}
+
+function folderOrBrowserCard() {
   if (state.watcher) {
     return `<div class="actions"><button class="ghost" data-act="all">分析資料夾裡所有對局</button>`
       + `<button class="ghost" data-act="pick">更換資料夾</button>${fileButton()}${precisionToggle()}</div>`;
@@ -277,6 +400,7 @@ document.addEventListener('click', async (ev) => {
   } else if (a.dataset.act === 'pick') pickFolder();
   else if (a.dataset.act === 'resume') resumeFolder();
   else if (a.dataset.act === 'all') analyzeAll();
+  else if (a.dataset.act === 'forget-bridge') forgetBridge();
 });
 
 document.addEventListener('change', async (ev) => {
@@ -296,7 +420,10 @@ document.addEventListener('drop', ev => {
   analyzeFiles(ev.dataTransfer.files);
 });
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', async () => {
+  if (await handleBridgeRoute()) render();
+  else render();
+});
 
 // ---------------------------------------------------------------- start
 
@@ -306,6 +433,10 @@ window.addEventListener('hashchange', render);
   if (dir) {
     state.dir = dir;
     if (await dir.queryPermission({ mode: 'read' }) === 'granted') await startWatching(dir, true);
+  }
+  if (!(await handleBridgeRoute())) {
+    const port = await getKV('bridgePort');
+    if (BRIDGE_PORTS.includes(port)) await startBridge(port);
   }
   await render();
   // Test hook: ?log=<url> reviews a log served next to the page (used by the test harness).
