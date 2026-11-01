@@ -1,7 +1,8 @@
 // A tiny HTTP server on 127.0.0.1 that hands the bg_advisor web page the recent Power.log
 // files, so the page needs no folder permission and Logs can stay under Program Files.
 //
-//   GET /status            {"name","version","port","gameEnds","logDir","logDirOk"}
+//   GET /status?browser=b  {"name","version","port","gameEnds","logDir","logDirOk","browser"}
+//                          (b: the browser the page runs in, remembered to open it later)
 //   GET /logs              [{"source","size","modified"}]  Power.log of the recent sessions
 //   GET /log?source=...    the raw text of one of those files
 //
@@ -28,7 +29,7 @@ namespace BgAdvisorBridge
         public const string SiteUrl = "https://wsed0412.github.io/bg_advisor_web/";
         public const int FirstPort = 47613;
         public const int LastPort = 47617;
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
         const int RecentSessions = 3;
 
         readonly Func<string> _logDir;
@@ -40,6 +41,12 @@ namespace BgAdvisorBridge
         long _lastPollTicks;
 
         public int Port { get; private set; }
+
+        /// <summary>The browser the last page runs in ("brave", "firefox", ...), or null.</summary>
+        public string Browser { get; set; }
+
+        /// <summary>Called with the new browser id when a page reports a different one.</summary>
+        public Action<string> BrowserChanged;
         public int GameEnds { get { return _gameEnds; } }
 
         /// <summary>When a page last asked for /status (UTC), or DateTime.MinValue.</summary>
@@ -197,10 +204,18 @@ namespace BgAdvisorBridge
             if (r.Path == "/status")
             {
                 Interlocked.Exchange(ref _lastPollTicks, DateTime.UtcNow.Ticks);
+                string browser = QueryValue(r.Query, "browser");
+                if (Browsers.IsKnown(browser) && browser != Browser)
+                {
+                    Browser = browser;
+                    var cb = BrowserChanged;
+                    if (cb != null) cb(browser);
+                }
                 string dir = SafeLogDir();
                 var json = "{\"name\":\"bg_advisor_bridge\",\"version\":" + Json(Version) + ",\"port\":" + Port
                            + ",\"gameEnds\":" + GameEnds + ",\"logDir\":" + Json(dir)
-                           + ",\"logDirOk\":" + (dir != null && Directory.Exists(dir) ? "true" : "false") + "}";
+                           + ",\"logDirOk\":" + (dir != null && Directory.Exists(dir) ? "true" : "false")
+                           + ",\"browser\":" + Json(Browser) + "}";
                 Send(s, 200, "application/json", Bytes(json), origin);
             }
             else if (r.Path == "/logs")

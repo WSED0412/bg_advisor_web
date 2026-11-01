@@ -1,10 +1,10 @@
 // HDT plugin: when a Battlegrounds game ends, let the bg_advisor web page review it.
 //
 // The plugin runs BridgeServer (127.0.0.1 only). An open report page notices the finished game
-// by itself; if no page has asked the bridge for a while, the plugin opens the site.
+// by itself; if no page has asked the bridge for a while, the plugin opens the site - in the
+// browser the page last ran in (remembered in %AppData%\HearthstoneDeckTracker\BgAdvisor.txt).
 
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -37,6 +37,8 @@ namespace BgAdvisorBridge
         public void OnLoad()
         {
             _server = new BridgeServer(LogDir, msg => Log("bridge: " + msg));
+            _server.Browser = LoadBrowser();
+            _server.BrowserChanged = SaveBrowser;
             try
             {
                 _server.Start();
@@ -92,12 +94,39 @@ namespace BgAdvisorBridge
             if (server == null) return;
             try
             {
-                Process.Start(new ProcessStartInfo(BridgeServer.SiteUrl + "#/bridge/" + server.Port) { UseShellExecute = true });
+                var used = Browsers.Open(server.Browser, BridgeServer.SiteUrl + "#/bridge/" + server.Port);
+                Log("opened the site in " + used);
             }
             catch (Exception e)
             {
                 Log("could not open the browser: " + e.Message);
             }
+        }
+
+        static string SettingsFile()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                "HearthstoneDeckTracker", "BgAdvisor.txt");
+        }
+
+        static string LoadBrowser()
+        {
+            try
+            {
+                var id = File.Exists(SettingsFile()) ? File.ReadAllText(SettingsFile()).Trim() : null;
+                return Browsers.IsKnown(id) ? id : null;
+            }
+            catch { return null; }
+        }
+
+        static void SaveBrowser(string id)
+        {
+            try
+            {
+                File.WriteAllText(SettingsFile(), id);
+                Log("browser: " + id);
+            }
+            catch (Exception e) { Log("could not save the browser: " + e.Message); }
         }
 
         static string LogDir()

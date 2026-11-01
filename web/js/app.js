@@ -203,6 +203,19 @@ async function pluginReleaseInfo() {
   return pluginRelease;
 }
 
+/** The browser this page runs in, so the plugin can open this one after a game. */
+function browserId() {
+  if (navigator.brave) return 'brave';
+  const ua = navigator.userAgent;
+  if (/Firefox\//.test(ua)) return 'firefox';
+  if (/Edg\//.test(ua)) return 'edge';
+  if (/Vivaldi/.test(ua)) return 'vivaldi';
+  if (/OPR\//.test(ua)) return '';  // Opera: let the plugin use the default browser
+  if (/Chrome\//.test(ua)) return 'chrome';
+  return '';
+}
+const statusPath = () => `/status?browser=${browserId()}`;
+
 async function bridgeFetch(path) {
   const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store' });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -223,7 +236,7 @@ async function bridgeTick() {
   if (bridgeBusy || !b) return;
   bridgeBusy = true;
   try {
-    const st = await (await bridgeFetch('/status')).json();
+    const st = await (await bridgeFetch(statusPath())).json();
     const wasConnected = b.connected;
     b.connected = true;
     b.error = '';
@@ -293,7 +306,7 @@ async function connectBridge() {
       // A refused port fails at once; a pending permission prompt waits for the user.
       const timer = setTimeout(() => ctl.abort(), port === BRIDGE_PORTS[0] ? 60000 : 3000);
       try {
-        const st = await (await fetch(`http://127.0.0.1:${port}/status`, { cache: 'no-store', signal: ctl.signal })).json();
+        const st = await (await fetch(`http://127.0.0.1:${port}${statusPath()}`, { cache: 'no-store', signal: ctl.signal })).json();
         if (st && st.name === 'bg_advisor_bridge') {
           state.busy = false;
           await startBridge(port);
