@@ -30,7 +30,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
+        # Lets the deployed site fetch local test logs (localhost only).
+        self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
+
+    def do_OPTIONS(self):
+        # Preflight from the deployed site (Private Network Access) for local test logs.
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Methods", "GET")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))

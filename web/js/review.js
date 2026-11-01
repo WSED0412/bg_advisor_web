@@ -22,9 +22,10 @@ const folderOf = src => {
   return parts.length > 1 ? parts[parts.length - 2] : parts[0].replace(/\.[^.]*$/, '');
 };
 
-/** Stable id of a game: the log folder (one per client session) and its start time. */
+/** Stable id of a game: its start time (to 0.1 microsecond) and the player, so the same game
+ *  gets the same id whether it was read from the watched folder or picked by hand. */
 export function gameKey(g) {
-  return `${folderOf(firstSource(g))}_${g.start}`.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
+  return `${g.start}_${g.player}`.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 /** 'YYYY-MM-DD HH:MM' from the session folder name (Hearthstone_2026_10_20_02_12_05). */
