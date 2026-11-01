@@ -76,7 +76,7 @@ function boardIndex(me, eid) {
   return i;
 }
 
-export function applySteps(g, steps) {
+export function applySteps(g, steps, settle = true) {
   for (const st of steps) {
     const me = meView(g);
     const kind = st[0];
@@ -101,7 +101,7 @@ export function applySteps(g, steps) {
     }
   }
   // A choice left open (Discover...) would block combat: take the first option.
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < (settle ? 4 : 0); i++) {
     if (!meView(g).pending) break;
     step(g, A_CHOOSE);
   }

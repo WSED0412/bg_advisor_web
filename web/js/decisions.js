@@ -123,7 +123,7 @@ export async function scoreTarget(engine, sim, p, combat, n = 1000) {
     const probe = g.copy();
     let pending;
     try {
-      applySteps(probe, playSteps(p, hid).slice(0, 1));
+      applySteps(probe, playSteps(p, hid).slice(0, 1), false);  // keep the target choice open
       pending = probe.view(ME).me.pending;
     } catch (e) {
       if (e instanceof StepError) throw new Skip('cannot_play', { msg: e.message });

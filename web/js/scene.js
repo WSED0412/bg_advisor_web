@@ -62,7 +62,6 @@ function setupPlayer(g, p, side, notes) {
   }
   if (!heroSet) debug(g, { cmd: 'set_hero', p, hero: NEUTRAL_HERO });
 
-  for (const zone of ['board', 'hand']) debug(g, { cmd: 'clear_zone', p, zone });
   const fields = {};
   for (const k of ['tier', 'health', 'armor']) if (k in side) fields[k] = Math.trunc(side[k]);
   if (Object.keys(fields).length) debug(g, { cmd: 'set_player', p, ...fields });
@@ -75,6 +74,11 @@ function setupPlayer(g, p, side, notes) {
       notes.push({ code: 'unknown_trinket', card: t });
     }
   }
+  // Getting a trinket can trigger its "when you get this" effect again (Portable Factory
+  // Discovers a minion): settle any choice it opens, then clear what it produced, so the
+  // scene holds only the warband and hand from the log.
+  settleChoices(g, p);
+  for (const zone of ['board', 'hand']) debug(g, { cmd: 'clear_zone', p, zone });
 
   const board = side.board || [];
   if (board.length > 7) throw new SceneError('a warband holds at most 7 minions');
@@ -99,6 +103,18 @@ function setupPlayer(g, p, side, notes) {
     } else {
       debug(g, { cmd: 'add_spell', p, zone: 'hand', card: c.id });
     }
+  }
+}
+
+/** Resolve pending choices of seat p (first option, else cancel). */
+function settleChoices(g, p, limit = 8) {
+  for (let i = 0; i < limit; i++) {
+    const v = g.view(p);
+    if (v.me.pending === null) return;
+    const mask = g.legalMask(p);
+    const a = [v.actions.CHOOSE, v.actions.CANCEL].find(x => mask[x] === '1');
+    if (a === undefined) return;
+    g.step(p, a);
   }
 }
 
