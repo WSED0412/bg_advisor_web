@@ -50,6 +50,40 @@ export function readExport(text) {
   return { reports, bad };
 }
 
+/** Copy of a value with every string's occurrences of `names` replaced by `to`. */
+function replaceNames(v, names, to) {
+  if (typeof v === 'string') {
+    let out = v;
+    for (const n of names) out = out.split(n).join(to);
+    return out;
+  }
+  if (Array.isArray(v)) return v.map(x => replaceNames(x, names, to));
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const [k, x] of Object.entries(v)) out[k] = replaceNames(x, names, to);
+    return out;
+  }
+  return v;
+}
+
+/**
+ * Copy of a report with the player's BattleTag removed: the name (with and without its #1234),
+ * and the same name inside the report key. Other players' names are not touched.
+ */
+export function anonymize(report) {
+  const player = typeof report.player === 'string' ? report.player : '';
+  if (!player) return report;
+  const bare = player.split('#')[0];
+  const keyForm = s => s.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
+  // Longest first, so "Name#1234" goes before "Name".
+  const names = [...new Set([player, bare].filter(n => n.length >= 2))].sort((a, b) => b.length - a.length);
+  const out = replaceNames(report, names, 'Player');
+  const pk = keyForm(player);
+  if (pk && typeof report.key === 'string' && report.key.endsWith(pk)) out.key = report.key.slice(0, -pk.length) + 'player';
+  out.player = 'Player';
+  return out;
+}
+
 /** Let the browser save these reports as a JSON file. */
 export function downloadReports(reports, name) {
   const data = { app: 'bg_advisor_web', kind: 'reports', version: 1, exported: new Date().toISOString(), reports };

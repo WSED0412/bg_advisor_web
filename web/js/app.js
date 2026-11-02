@@ -5,7 +5,7 @@
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
 import { esc, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
-import { downloadReports, readExport, today } from './share.js';
+import { anonymize, downloadReports, readExport, today } from './share.js';
 
 const $ = sel => document.querySelector(sel);
 // Test harness: ?log=...&report=/report also mirrors status and errors to POST /log.
@@ -512,9 +512,14 @@ document.addEventListener('click', async (ev) => {
   } else if (a.dataset.export) {
     ev.preventDefault();
     const res = await getGame(a.dataset.export);
-    if (res) downloadReports([res], `bg_advisor_${res.key}.json`);
+    if (res) {
+      const anon = confirm(t('export.anon'));
+      const out = anon ? anonymize(res) : res;
+      downloadReports([out], `bg_advisor_${out.key}.json`);
+    }
   } else if (a.dataset.act === 'export-all') {
-    downloadReports(await allGames(), `bg_advisor_reports_${today()}.json`);
+    const all = await allGames();
+    downloadReports(confirm(t('export.anon')) ? all.map(anonymize) : all, `bg_advisor_reports_${today()}.json`);
   } else if (a.dataset.act === 'all') analyzeBackups();
   else if (a.dataset.act === 'connect-bridge') connectBridge();
   else if (a.dataset.act === 'lang') {

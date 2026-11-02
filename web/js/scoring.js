@@ -44,9 +44,11 @@ export const verdict = score => (score >= 91 ? '最佳或接近最佳' : score >
 
 // Python's round(): halves to even.
 export function pyRound(x) {
+  // Exact, like Python: only a value that is exactly .5 goes to the even neighbour
+  // (a tolerance here made 17.5000000001 round down in JS but up in Python).
   const f = Math.floor(x), d = x - f;
-  if (Math.abs(d - 0.5) < 1e-9) return f % 2 === 0 ? f : f + 1;
-  return Math.round(x);
+  if (d === 0.5) return f % 2 === 0 ? f : f + 1;
+  return d < 0.5 ? f : f + 1;
 }
 
 /** Win mode: -3 per win-rate point given up. Damage mode: -10 per hero damage point. */

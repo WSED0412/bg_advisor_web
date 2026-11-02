@@ -88,6 +88,8 @@ const STR = {
     'list.incomplete': '・未完成',
     'list.imported': '・匯入（{player}）',
     'btn.exportAll': '匯出全部報告',
+    'export.anon': '匯出時要隱藏你的 BattleTag 嗎?
+按「確定」＝匿名(要分享給別人請選這個);按「取消」＝保留名稱(搬到自己的另一台電腦用)。',
     'btn.import': '匯入報告',
     'notice.imported': '匯入了 {n} 份報告',
     'notice.importHad': '，{n} 份已經有了（沒有覆蓋）',
@@ -307,6 +309,8 @@ const STR = {
     'list.incomplete': ' · incomplete',
     'list.imported': ' · imported ({player})',
     'btn.exportAll': 'Export all reports',
+    'export.anon': 'Hide your BattleTag in the export?
+OK = anonymous (choose this to share with others); Cancel = keep the name (to move to your own other computer).',
     'btn.import': 'Import reports',
     'notice.imported': 'Imported {n} reports',
     'notice.importHad': ', {n} already here (not overwritten)',
