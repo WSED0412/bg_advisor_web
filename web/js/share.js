@@ -50,20 +50,27 @@ export function readExport(text) {
   return { reports, bad };
 }
 
-/** Copy of a value with every string's occurrences of `names` replaced by `to`. */
+const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Copy of a value with every string's whole-word occurrences of `names` replaced by `to`: a
+ * name counts only when no letter, digit or _ touches it ("Ed vs Bob", "Ed#1234"), so a short
+ * name never eats into other words ("Edwin", "Shred").
+ */
 function replaceNames(v, names, to) {
-  if (typeof v === 'string') {
-    let out = v;
-    for (const n of names) out = out.split(n).join(to);
-    return out;
-  }
-  if (Array.isArray(v)) return v.map(x => replaceNames(x, names, to));
-  if (v && typeof v === 'object') {
-    const out = {};
-    for (const [k, x] of Object.entries(v)) out[k] = replaceNames(x, names, to);
-    return out;
-  }
-  return v;
+  if (!names.length) return v;
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${names.map(reEscape).join('|')})(?![\\p{L}\\p{N}_])`, 'gu');
+  const walk = x => {
+    if (typeof x === 'string') return x.replace(re, to);
+    if (Array.isArray(x)) return x.map(walk);
+    if (x && typeof x === 'object') {
+      const out = {};
+      for (const [k, y] of Object.entries(x)) out[k] = walk(y);
+      return out;
+    }
+    return x;
+  };
+  return walk(v);
 }
 
 /**
@@ -76,7 +83,7 @@ export function anonymize(report) {
   const bare = player.split('#')[0];
   const keyForm = s => s.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
   // Longest first, so "Name#1234" goes before "Name".
-  const names = [...new Set([player, bare].filter(n => n.length >= 2))].sort((a, b) => b.length - a.length);
+  const names = [...new Set([player, bare].filter(Boolean))].sort((a, b) => b.length - a.length);
   const out = replaceNames(report, names, 'Player');
   const pk = keyForm(player);
   if (pk && typeof report.key === 'string' && report.key.endsWith(pk)) out.key = report.key.slice(0, -pk.length) + 'player';
