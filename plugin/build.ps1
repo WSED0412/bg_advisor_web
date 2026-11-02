@@ -33,7 +33,8 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 $out = Join-Path $dist "BgAdvisorBridge.dll"
 $src = Get-ChildItem (Join-Path $here "src") -Filter *.cs | Select-Object -ExpandProperty FullName
 
-$args = @("/nologo", "/target:library", "/optimize+", "/langversion:latest", "/out:$out") +
+# /pathmap keeps this computer's folders (user name) out of the DLL.
+$args = @("/nologo", "/target:library", "/optimize+", "/langversion:latest", "/deterministic", "/pathmap:$here=BgAdvisorBridge", "/out:$out") +
         ($refs | ForEach-Object { "/reference:$_" }) + $src
 & $csc @args
 if ($LASTEXITCODE -ne 0) { throw "編譯失敗" }
