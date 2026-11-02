@@ -27,6 +27,7 @@ const state = {
   notice: '',         // a message shown in the status line until the next one
   error: null,        // {key, vars} or {text}
   precision: 'full',
+  bridgeToken: '',    // the plugin's token (from #/bridge/<port>/<token>), kept in IndexedDB
 };
 
 const setError = (key, vars = {}) => { state.error = { key, vars }; };
@@ -105,10 +106,17 @@ document.addEventListener('visibilitychange', () => {
 // Plugin 0.3.0 and later also keep a backup (Documents\BG Advisor): every Power.log with a
 // Battlegrounds game, and every report this page sends. On connecting, reports missing on
 // either side are copied over, so clearing the browser's data loses nothing.
+//
+// Plugin 0.4.0 and later answer only requests with their token (Authorization: Bearer ...),
+// which they pass in the address they open: #/bridge/<port>/<token>. Without it /status only
+// says the plugin is there and its version, and the page asks to be opened from HDT once.
+// Older plugins get no token header: they do not allow it, and the browser would block the call.
 
 const BRIDGE_PORTS = [47613, 47614, 47615, 47616, 47617];
 const PLUGIN_URL = 'plugin/BgAdvisorBridge.dll';
 const BACKUP_VERSION = '0.3.0';  // first plugin with the backup
+const TOKEN_VERSION = '0.4.0';   // first plugin that wants the token
+const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 /** -1, 0 or 1, comparing dotted versions ("0.1.0" < "0.10.0"). */
 function cmpVersion(a, b) {
@@ -147,10 +155,31 @@ function browserId() {
 }
 const statusPath = () => `/status?browser=${browserId()}`;
 
-async function bridgeFetch(path, init = {}) {
-  const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store', ...init });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+class BridgeHttpError extends Error {
+  constructor(status) { super(`HTTP ${status}`); this.status = status; }
+}
+
+/** Whether requests to the connected plugin carry the token. */
+const sendToken = () => !!(state.bridgeToken && state.bridge && state.bridge.version
+  && cmpVersion(state.bridge.version, TOKEN_VERSION) >= 0);
+
+async function bridgeFetch(path, init = {}, auth = sendToken()) {
+  const headers = { ...(init.headers || {}) };
+  if (auth) headers.Authorization = `Bearer ${state.bridgeToken}`;
+  const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store', ...init, headers });
+  if (!r.ok) throw new BridgeHttpError(r.status);
   return r;
+}
+
+/** The plugin's /status: the full one with the token, else the short one (name, version, auth). */
+async function readStatus() {
+  let st = await (await bridgeFetch(statusPath())).json();
+  // The version was not known yet: ask again with the token, now that it may be sent.
+  if (st.auth === 'required' && state.bridgeToken && !sendToken()) {
+    state.bridge.version = st.version;
+    st = await (await bridgeFetch(statusPath(), {}, true)).json();
+  }
+  return st;
 }
 
 /** The connected plugin keeps backups. */
@@ -203,10 +232,23 @@ async function bridgeTick() {
   if (bridgeBusy || !b) return;
   bridgeBusy = true;
   try {
-    const st = await (await bridgeFetch(statusPath())).json();
+    if (b.needToken) {
+      // Another tab opened from HDT may have stored the token meanwhile.
+      const kept = await getKV('bridgeToken');
+      if (TOKEN_RE.test(kept || '')) state.bridgeToken = kept;
+    }
+    const known = b.version;
+    const st = await readStatus();
+    if (known !== b.version) b.version = known;  // let the version check below run
     const wasConnected = b.connected;
     b.connected = true;
     b.error = '';
+    const needToken = st.auth === 'required';
+    if (needToken !== !!b.needToken) {
+      b.needToken = needToken;
+      b.tokenRejected = needToken && !!state.bridgeToken;
+      if (route().page === 'list') render();
+    }
     b.logDirOk = st.logDirOk;
     b.backupDir = st.backupDir || null;
     b.logBackups = st.logBackups || 0;
@@ -221,6 +263,7 @@ async function bridgeTick() {
       if (route().page === 'list') render();
     }
     if (b.tooOld) return;  // this page may not understand an old plugin: ask for the update first
+    if (b.needToken) return;  // not paired: the page must be opened from HDT once
     if (b.ends === null) {
       // First contact: bring the reports in line with the backup, then review recent finished
       // games that still have no report.
@@ -235,6 +278,16 @@ async function bridgeTick() {
     if (!wasConnected && route().page === 'list') render();
   } catch (e) {
     const wasConnected = b.connected;
+    if (e instanceof BridgeHttpError && e.status === 401) {
+      // The plugin made a new token (or never had this one): pair again.
+      b.connected = true;
+      if (!b.needToken) {
+        b.needToken = true;
+        b.tokenRejected = true;
+        if (route().page === 'list') render();
+      }
+      return;
+    }
     b.connected = false;
     b.error = e.message;
     if (wasConnected && route().page === 'list') render();
@@ -324,12 +377,16 @@ async function connectBridge() {
   }
 }
 
-/** #/bridge/<port>: opened by the plugin. */
+/** #/bridge/<port>[/<token>]: opened by the plugin. The token is kept and taken off the address. */
 async function handleBridgeRoute() {
-  const m = /^#\/bridge\/(\d+)$/.exec(location.hash);
+  const m = /^#\/bridge\/(\d+)(?:\/([^/]*))?$/.exec(location.hash);
   if (!m) return false;
   const port = parseInt(m[1], 10);
   history.replaceState(null, '', location.pathname + location.search + '#/');
+  if (m[2] && TOKEN_RE.test(m[2])) {
+    state.bridgeToken = m[2];
+    await setKV('bridgeToken', m[2]);
+  }
   if (BRIDGE_PORTS.includes(port)) await startBridge(port);
   return true;
 }
@@ -388,9 +445,10 @@ function renderStatus() {
   } else if (state.notice) {
     text = esc(state.notice);
   } else if (state.bridge && state.bridge.connected) {
-    dot = state.bridge.tooOld ? '' : 'live';
-    text = esc(t('status.bridge')
-      + (state.bridge.tooOld ? t('status.bridge.tooOld') : state.bridge.outdated ? t('status.bridge.update') : ''));
+    const b = state.bridge;
+    dot = b.tooOld || b.needToken ? '' : 'live';
+    text = esc(t('status.bridge') + (b.tooOld ? t('status.bridge.tooOld') : b.needToken ? t('status.bridge.pair')
+      : b.outdated ? t('status.bridge.update') : ''));
   } else if (state.bridge) {
     text = esc(t('status.waitBridge'));
   } else {
@@ -428,6 +486,11 @@ function setupCard() {
     const update = b.tooOld
       ? `<div class="warn err">${esc(t('setup.tooOld', { version: b.version, min: b.min }))}${steps}</div>`
       : b.outdated ? `<div class="warn">${esc(t('setup.outdated', { version: b.version, latest: b.latest }))}${steps}</div>` : '';
+    if (b.needToken && !b.tooOld) {
+      return `<div class="warn">${esc(t(b.tokenRejected ? 'setup.pairAgain' : 'setup.pair', { version: b.version || '?' }))}`
+        + `${t('setup.pairSteps')}</div>${update}`
+        + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.reconnect'))}</button></div>`;
+    }
     return `<p>${esc(t('setup.bridgeOn', { version: b.version || '?' }))}</p>${update}${warn}${backupInfo(b)}`
       + `<div class="actions"><button class="ghost" data-act="all">${esc(t('btn.analyzeAll'))}</button>`
       + `${precisionToggle()}</div>`;
@@ -564,6 +627,8 @@ window.addEventListener('hashchange', async () => {
   await loadNames();
   renderChrome();
   state.precision = (await getKV('precision')) || 'full';
+  const token = await getKV('bridgeToken');
+  if (TOKEN_RE.test(token || '')) state.bridgeToken = token;
   if (!(await handleBridgeRoute())) {
     const port = await getKV('bridgePort');
     if (BRIDGE_PORTS.includes(port)) await startBridge(port);

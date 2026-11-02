@@ -54,6 +54,10 @@ const STR = {
     'status.bridge': '已連線 HDT 外掛',
     'status.bridge.update': '・有新版外掛',
     'status.bridge.tooOld': '・外掛需要更新',
+    'status.bridge.pair': '・請從 HDT 開啟一次',
+    'setup.pair': '找到 HDT 外掛（{version}），但這個網頁還沒配對：外掛只讓從 HDT 開啟過的網頁讀取紀錄檔，這樣你電腦上其他網頁就讀不到。',
+    'setup.pairAgain': '外掛（{version}）不接受這個網頁保存的連線密碼，可能是在 HDT 按了「重設網頁連線」。請從 HDT 重新開啟這個網頁。',
+    'setup.pairSteps': '<p>在 HDT 的 選項 › 追蹤器 › 外掛 選 BG Advisor，按「開啟復盤網頁 Open review page」；或打完下一局英雄戰場，HDT 會自動打開。之後再用「連線 HDT 外掛」就不用重新配對。</p>',
     'status.waitBridge': '等待 HDT 外掛…',
     'status.noBridge': '尚未連線 HDT 外掛',
     'status.searchBridge': '正在尋找 HDT 外掛…（瀏覽器若詢問「存取本機網路」請按允許）',
@@ -81,7 +85,7 @@ const STR = {
     'setup.tooOld': '外掛版本太舊（{version}），這個網頁需要 {min} 以上才能自動分析。',
     'setup.outdated': '有新版外掛：{version} → {latest}。',
     'plugin.summary': '怎麼安裝 HDT 外掛',
-    'plugin.steps': '<ol><li>下載 <a href="{url}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li><li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li><li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，再按這個頁面上的「連線 HDT 外掛」。</li><li>瀏覽器問「允許存取本機網路上的裝置」時按允許。</li></ol><p class="small mute">之後每局英雄戰場結束，HDT 會自動打開這局的報告。外掛只在本機 127.0.0.1 提供紀錄檔給這個網站、把紀錄檔和報告備份在「文件\\BG Advisor」，不會上傳任何東西。</p>',
+    'plugin.steps': '<ol><li>下載 <a href="{url}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li><li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li><li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，按它的「開啟復盤網頁 Open review page」（第一次要從 HDT 開啟，網頁才會取得連線密碼；之後也可以直接按這個頁面上的「連線 HDT 外掛」）。</li><li>瀏覽器問「允許存取本機網路上的裝置」時按允許。</li></ol><p class="small mute">之後每局英雄戰場結束，HDT 會自動打開這局的報告。外掛只在本機 127.0.0.1 提供紀錄檔給這個網站、把紀錄檔和報告備份在「文件\\BG Advisor」，不會上傳任何東西。</p>',
 
     // list
     'list.empty': '還沒有報告。打完一局英雄戰場後會自動出現在這裡。',
@@ -263,7 +267,7 @@ const STR = {
 
     // help
     'help.privacy.summary': '外掛會讀寫哪些檔案？誰能存取？',
-    'help.privacy.body': '<ul><li><b>讀取</b>：爐石 <code>Logs</code> 資料夾裡的 <code>Power.log</code>（網頁只讀得到這些檔案），以及登錄檔裡瀏覽器的安裝位置（用來在對局結束後打開報告）。</li><li><b>寫入</b>：<code>文件\\BG Advisor\\logs</code>（只備份有英雄戰場對局的紀錄檔）、<code>文件\\BG Advisor\\reports</code>（報告；刪除的移到 <code>reports\\deleted</code>），和 <code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code>（上次用的瀏覽器）。</li><li><b>網路</b>：外掛只在本機 127.0.0.1 提供資料，不會連到任何網站；網頁只從 GitHub Pages 下載網站本身的檔案，沒有分析追蹤或第三方程式。紀錄檔和報告都不會上傳。</li><li><b>報告內容</b>：你的 BattleTag、紀錄檔裡的對手名稱、英雄、陣容和分數。匯出時可以選擇把你的 BattleTag 換成 Player；對手名稱不會被換掉。</li><li><b>存取限制</b>：外掛只回應這個網站和本機網頁（localhost），其他網站一律拒絕。目前本機其他程式開的網頁也能讀取，之後會加上只有從 HDT 開啟的網頁才知道的密碼。</li></ul><p class="small mute">詳細說明和檢查外掛 SHA-256 的方法見 <a href="https://github.com/WSED0412/bg_advisor_web#隱私與安全">README</a>。</p>',
+    'help.privacy.body': '<ul><li><b>讀取</b>：爐石 <code>Logs</code> 資料夾裡的 <code>Power.log</code>（網頁只讀得到這些檔案），以及登錄檔裡瀏覽器的安裝位置（用來在對局結束後打開報告）。</li><li><b>寫入</b>：<code>文件\\BG Advisor\\logs</code>（只備份有英雄戰場對局的紀錄檔）、<code>文件\\BG Advisor\\reports</code>（報告；刪除的移到 <code>reports\\deleted</code>），<code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code>（上次用的瀏覽器）和 <code>BgAdvisorToken.txt</code>（連線密碼）。</li><li><b>網路</b>：外掛只在本機 127.0.0.1 提供資料，不會連到任何網站；網頁只從 GitHub Pages 下載網站本身的檔案，沒有分析追蹤或第三方程式。紀錄檔和報告都不會上傳。</li><li><b>報告內容</b>：你的 BattleTag、紀錄檔裡的對手名稱、英雄、陣容和分數。匯出時可以選擇把你的 BattleTag 換成 Player；對手名稱不會被換掉。</li><li><b>存取限制</b>：外掛只回應這個網站和本機網頁，其他網站一律拒絕；而且讀紀錄檔和備份都要帶外掛的連線密碼。密碼只放在 HDT 打開網頁的網址裡（網頁收下後會從網址拿掉），所以你電腦上其他網頁讀不到。想換密碼可以用 HDT 外掛選單的「重設網頁連線」。</li></ul><p class="small mute">詳細說明和檢查外掛 SHA-256 的方法見 <a href="https://github.com/WSED0412/bg_advisor_web#隱私與安全">README</a>。</p>',
     'help.about.summary': '這是什麼？資料會上傳嗎？',
     'help.about.body': '<p>這個網頁讀取爐石的 <code>Power.log</code>，重建每回合的戰鬥，用 <a href="https://github.com/MCG-NJU/AutoTavern">TavernGym</a> 模擬器把你的站位、指向性目標、磁力和出牌順序，和其他所有選擇比較勝率後打分數。</p><p>所有分析都在你的電腦上（瀏覽器裡）進行，紀錄檔和報告都不會上傳到任何地方；報告存在這個瀏覽器裡，HDT 外掛也會把紀錄檔和報告備份在你電腦的「文件\\BG Advisor」資料夾（清除瀏覽器資料後，重新連線外掛就會還原）。</p><p class="small mute">模擬器依 36.6.3（253932）版本建置；數值和你的客戶端不同的隨從會在報告中標出。Hearthstone 與卡片資料為 Blizzard Entertainment 所有，本網站與 Blizzard 無關。<a href="https://github.com/WSED0412/bg_advisor_web">原始碼</a></p>',
   },
@@ -281,6 +285,10 @@ const STR = {
     'status.bridge': 'Connected to the HDT plugin',
     'status.bridge.update': ' · plugin update available',
     'status.bridge.tooOld': ' · plugin must be updated',
+    'status.bridge.pair': ' · open this page from HDT once',
+    'setup.pair': 'The HDT plugin ({version}) is there, but this page is not paired with it yet: the plugin lets only pages opened from HDT read your logs, so other pages on your computer cannot.',
+    'setup.pairAgain': 'The plugin ({version}) does not accept the key this page kept; perhaps "Reset web connection" was used in HDT. Open this page from HDT again.',
+    'setup.pairSteps': '<p>In HDT, Options › Tracker › Plugins, select BG Advisor and click "開啟復盤網頁 Open review page"; or finish your next Battlegrounds game and HDT opens it. After that, "Connect to HDT plugin" works without pairing again.</p>',
     'status.waitBridge': 'Waiting for the HDT plugin…',
     'status.noBridge': 'Not connected to the HDT plugin',
     'status.searchBridge': 'Looking for the HDT plugin… (allow "local network" access if the browser asks)',
@@ -306,7 +314,7 @@ const STR = {
     'setup.tooOld': 'The plugin is too old ({version}); this page needs {min} or newer to analyze games automatically.',
     'setup.outdated': 'A new plugin is available: {version} → {latest}.',
     'plugin.summary': 'How to install the HDT plugin',
-    'plugin.steps': '<ol><li>Download <a href="{url}" download>BgAdvisorBridge.dll</a>, right-click it › Properties, tick "Unblock" and click OK.</li><li>Put it in <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code> and restart HDT.</li><li>In HDT, Options › Tracker › Plugins, enable "BG Advisor", then click "Connect to HDT plugin" on this page.</li><li>Allow "local network" access when the browser asks.</li></ol><p class="small mute">After that, HDT opens the report of every Battlegrounds game when it ends. The plugin only serves the logs to this site on 127.0.0.1 on your own computer and backs up logs and reports in "Documents\\BG Advisor"; it uploads nothing.</p>',
+    'plugin.steps': '<ol><li>Download <a href="{url}" download>BgAdvisorBridge.dll</a>, right-click it › Properties, tick "Unblock" and click OK.</li><li>Put it in <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code> and restart HDT.</li><li>In HDT, Options › Tracker › Plugins, enable "BG Advisor" and click its "開啟復盤網頁 Open review page" (the first time, the page must be opened from HDT to get the plugin\'s key; later "Connect to HDT plugin" on this page works too).</li><li>Allow "local network" access when the browser asks.</li></ol><p class="small mute">After that, HDT opens the report of every Battlegrounds game when it ends. The plugin only serves the logs to this site on 127.0.0.1 on your own computer and backs up logs and reports in "Documents\\BG Advisor"; it uploads nothing.</p>',
 
     'list.empty': 'No reports yet. They show up here after you finish a Battlegrounds game.',
     'list.rounds': '{n} rounds',
@@ -485,7 +493,7 @@ const STR = {
     'grade.damage': '{score} / 100 ({verdict}; every option likely loses, {gap} more damage than the best)',
 
     'help.privacy.summary': 'What does the plugin read and write? Who can reach it?',
-    'help.privacy.body': '<ul><li><b>Reads</b>: <code>Power.log</code> in Hearthstone\'s <code>Logs</code> folder (the page can read only these files), and browser install paths in the registry (to open the report after a game).</li><li><b>Writes</b>: <code>Documents\\BG Advisor\\logs</code> (only logs with a Battlegrounds game), <code>Documents\\BG Advisor\\reports</code> (reports; deleted ones move to <code>reports\\deleted</code>) and <code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code> (the browser last used).</li><li><b>Network</b>: the plugin serves data on 127.0.0.1 only and connects to no web site; the page downloads only its own files from GitHub Pages, with no analytics or third-party code. Logs and reports are never uploaded.</li><li><b>Reports</b> hold your BattleTag, opponents\' names from the log, heroes, boards and scores. When exporting you can replace your BattleTag with Player; opponents\' names are kept.</li><li><b>Access</b>: the plugin answers only this site and local pages (localhost); other sites are refused. Pages served by other local programs can currently read it too; a token known only to pages opened from HDT will close that.</li></ul><p class="small mute">Details, and how to check the plugin\'s SHA-256: <a href="https://github.com/WSED0412/bg_advisor_web#privacy-and-security-english">README</a>.</p>',
+    'help.privacy.body': '<ul><li><b>Reads</b>: <code>Power.log</code> in Hearthstone\'s <code>Logs</code> folder (the page can read only these files), and browser install paths in the registry (to open the report after a game).</li><li><b>Writes</b>: <code>Documents\\BG Advisor\\logs</code> (only logs with a Battlegrounds game), <code>Documents\\BG Advisor\\reports</code> (reports; deleted ones move to <code>reports\\deleted</code>) <code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code> (the browser last used) and <code>BgAdvisorToken.txt</code> (the plugin\'s key).</li><li><b>Network</b>: the plugin serves data on 127.0.0.1 only and connects to no web site; the page downloads only its own files from GitHub Pages, with no analytics or third-party code. Logs and reports are never uploaded.</li><li><b>Reports</b> hold your BattleTag, opponents\' names from the log, heroes, boards and scores. When exporting you can replace your BattleTag with Player; opponents\' names are kept.</li><li><b>Access</b>: the plugin answers only this site and local pages, other sites are refused, and reading logs or the backup needs the plugin\'s key. The key is only in the address HDT opens (the page removes it from there), so other pages on your computer cannot read anything. "Reset web connection" in HDT\'s plugin menu makes a new key.</li></ul><p class="small mute">Details, and how to check the plugin\'s SHA-256: <a href="https://github.com/WSED0412/bg_advisor_web#privacy-and-security-english">README</a>.</p>',
     'help.about.summary': 'What is this? Is anything uploaded?',
     'help.about.body': '<p>This page reads Hearthstone\'s <code>Power.log</code>, rebuilds each combat and uses the <a href="https://github.com/MCG-NJU/AutoTavern">TavernGym</a> simulator to score your positioning, friendly targets, Magnetic placement and play order against every alternative.</p><p>Everything runs on your computer, inside the browser. Logs and reports are never uploaded; reports are stored in this browser, and the HDT plugin backs up logs and reports in the "Documents\\BG Advisor" folder on your computer (after clearing the browser\'s data, reconnecting the plugin restores them).</p><p class="small mute">The simulator is built for patch 36.6.3 (253932); minions whose stats differ in your client are flagged in the report. Hearthstone and its card data belong to Blizzard Entertainment; this site is not affiliated with Blizzard. <a href="https://github.com/WSED0412/bg_advisor_web">Source code</a></p>',
   },

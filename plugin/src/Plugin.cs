@@ -5,9 +5,16 @@
 // browser the page last ran in (remembered in %AppData%\HearthstoneDeckTracker\BgAdvisor.txt).
 // Every Power.log with a Battlegrounds game, and every report the page makes, is also kept in
 // Documents\BG Advisor (Backup.cs).
+//
+// The page may use the bridge only with the plugin's token (BridgeServer.cs), which the plugin
+// puts in the address it opens (#/bridge/<port>/<token>). The token is made once and kept in
+// %AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt; the plugin's menu item makes a new one
+// (pages that had the old one must then be opened from HDT again).
 
 using System;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using Hearthstone_Deck_Tracker;
@@ -21,6 +28,7 @@ namespace BgAdvisorBridge
         BridgeServer _server;
         Backup _backup;
         bool _battlegrounds;
+        MenuItem _menu;
 
         public string Name { get { return "BG Advisor（英雄戰場復盤）"; } }
         public string Description
@@ -33,15 +41,27 @@ namespace BgAdvisorBridge
                        + "紀錄檔和報告都會備份在「文件\\BG Advisor」。";
             }
         }
-        public string ButtonText { get { return "開啟復盤網頁"; } }
+        public string ButtonText { get { return "開啟復盤網頁 Open review page"; } }
         public string Author { get { return "WSED0412"; } }
         public Version Version { get { return new Version(BridgeServer.Version); } }
-        public MenuItem MenuItem { get { return null; } }
+        public MenuItem MenuItem
+        {
+            get
+            {
+                if (_menu == null)
+                {
+                    _menu = new MenuItem { Header = "BG Advisor：重設網頁連線 Reset web connection" };
+                    _menu.Click += (sender, e) => ResetToken();
+                }
+                return _menu;
+            }
+        }
 
         public void OnLoad()
         {
             _backup = new Backup(Backup.DefaultRoot(), msg => Log("backup: " + msg));
             _server = new BridgeServer(LogDir, _backup, msg => Log("bridge: " + msg));
+            _server.Token = LoadOrCreateToken();
             _server.Browser = LoadBrowser();
             _server.BrowserChanged = SaveBrowser;
             try
@@ -113,13 +133,68 @@ namespace BgAdvisorBridge
             if (server == null) return;
             try
             {
-                var used = Browsers.Open(server.Browser, BridgeServer.SiteUrl + "#/bridge/" + server.Port);
+                var used = Browsers.Open(server.Browser, BridgeServer.SiteUrl + "#/bridge/" + server.Port + "/" + server.Token);
                 Log("opened the site in " + used);
             }
             catch (Exception e)
             {
                 Log("could not open the browser: " + e.Message);
             }
+        }
+
+        // ------------------------------------------------------------------ token
+
+        static readonly Regex TokenRe = new Regex("^[A-Za-z0-9_-]{43}$");
+
+        static string TokenFile()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                "HearthstoneDeckTracker", "BgAdvisorToken.txt");
+        }
+
+        /// <summary>32 random bytes (a cryptographic generator), base64url: 43 characters.</summary>
+        static string NewToken()
+        {
+            var bytes = new byte[32];
+            using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(bytes);
+            return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        /// <summary>The kept token, or a new one (kept for next time).</summary>
+        static string LoadOrCreateToken()
+        {
+            try
+            {
+                if (File.Exists(TokenFile()))
+                {
+                    var kept = File.ReadAllText(TokenFile()).Trim();
+                    if (TokenRe.IsMatch(kept)) return kept;
+                }
+            }
+            catch (Exception e) { Log("could not read the token: " + e.Message); }
+            var token = NewToken();
+            SaveToken(token);
+            return token;
+        }
+
+        static void SaveToken(string token)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(TokenFile()));
+                File.WriteAllText(TokenFile(), token);
+            }
+            catch (Exception e) { Log("could not save the token: " + e.Message); }
+        }
+
+        /// <summary>A new token: pages that had the old one must be opened from HDT again.</summary>
+        void ResetToken()
+        {
+            var token = NewToken();
+            SaveToken(token);
+            if (_server != null) _server.Token = token;
+            Log("token reset");
+            OpenSite();
         }
 
         static string SettingsFile()

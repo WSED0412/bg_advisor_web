@@ -4,6 +4,7 @@
 //   GET /status?browser=b  {"name","version","port","gameEnds","logDir","logDirOk","browser",
 //                           "backupDir","logBackups","reports"}
 //                          (b: the browser the page runs in, remembered to open it later)
+//                          Without the token: only {"name","version","port","auth":"required"}.
 //   GET /logs[?all=1]      [{"source","size","modified"}]  Power.log of the recent sessions
 //                          (all=1: every session, also those only left in the backup)
 //   GET /log?source=...    the raw text of one of those files (from Logs, or else the backup)
@@ -16,6 +17,11 @@
 // 127.0.0.1/localhost (no DNS rebinding), and only files from the current listing are served.
 // Writes need an allowed Origin and only touch Documents\BG Advisor\reports (see Backup.cs).
 // The server never listens on another interface.
+//
+// Since 0.4.0 every request but the short /status needs "Authorization: Bearer <token>" (401
+// otherwise). The token is random, kept by the plugin (Plugin.cs) and handed to the page only in
+// the address the plugin opens (#/bridge/<port>/<token>), so another page on this computer - a
+// local web server on any port - cannot read the logs or change the backup.
 
 using System;
 using System.Collections.Generic;
@@ -36,7 +42,7 @@ namespace BgAdvisorBridge
         public const string SiteUrl = "https://wsed0412.github.io/bg_advisor_web/";
         public const int FirstPort = 47613;
         public const int LastPort = 47617;
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
         const int RecentSessions = 3;
 
         const int MaxReportBytes = 32 * 1024 * 1024;
@@ -51,6 +57,11 @@ namespace BgAdvisorBridge
         long _lastPollTicks;
 
         public int Port { get; private set; }
+
+        volatile string _token;
+
+        /// <summary>The secret a page must send (Authorization: Bearer ...); replaceable at any time.</summary>
+        public string Token { get { return _token; } set { _token = value; } }
 
         /// <summary>The browser the last page runs in ("brave", "firefox", ...), or null.</summary>
         public string Browser { get; set; }
@@ -152,6 +163,25 @@ namespace BgAdvisorBridge
             return r;
         }
 
+        /// <summary>Whether the request carries the token (compared in constant time).</summary>
+        bool Authorized(Request r)
+        {
+            string token = _token, auth;
+            if (string.IsNullOrEmpty(token) || !r.Headers.TryGetValue("Authorization", out auth)) return false;
+            const string Bearer = "Bearer ";
+            if (!auth.StartsWith(Bearer, StringComparison.Ordinal)) return false;
+            return SameSecret(auth.Substring(Bearer.Length).Trim(), token);
+        }
+
+        /// <summary>Equal strings, in a time that depends only on their lengths.</summary>
+        public static bool SameSecret(string a, string b)
+        {
+            if (a == null || b == null) return false;
+            int diff = a.Length ^ b.Length;
+            for (int i = 0; i < a.Length && i < b.Length; i++) diff |= a[i] ^ b[i];
+            return diff == 0;
+        }
+
         static bool AllowedOrigin(string origin)
         {
             if (string.IsNullOrEmpty(origin)) return false;
@@ -216,9 +246,22 @@ namespace BgAdvisorBridge
                 if (!ReadBody(s, r, out body)) { Send(s, 413, "text/plain", Bytes("body too large"), origin, false, false); return false; }
                 // Writes only from the web app itself, never from a request without an Origin.
                 if (!AllowedOrigin(origin)) { Send(s, 403, "text/plain", Bytes("origin required"), null, false, false); return false; }
+                if (!Authorized(r)) { Unauthorized(s, origin); return true; }
                 return HandleWrite(s, r, origin, body);
             }
             if (r.Method != "GET") { Send(s, 405, "text/plain", Bytes("method not allowed"), origin, false, false); return false; }
+
+            bool authorized = Authorized(r);
+            if (r.Path == "/status" && !authorized)
+            {
+                // Enough to find the plugin and see its version (an older page or plugin can then
+                // tell what to do), nothing about this computer.
+                var hello = "{\"name\":\"bg_advisor_bridge\",\"version\":" + Json(Version) + ",\"port\":" + Port
+                            + ",\"auth\":\"required\"}";
+                Send(s, 200, "application/json", Bytes(hello), origin);
+                return true;
+            }
+            if (!authorized) { Unauthorized(s, origin); return true; }
 
             if (r.Path == "/status")
             {
@@ -294,6 +337,11 @@ namespace BgAdvisorBridge
                 Send(s, 404, "text/plain", Bytes("not found"), origin);
             }
             return true;
+        }
+
+        static void Unauthorized(Stream s, string origin)
+        {
+            Send(s, 401, "application/json", Bytes("{\"error\":\"token\"}"), origin);
         }
 
         bool HandleWrite(Stream s, Request r, string origin, byte[] body)
@@ -429,7 +477,7 @@ namespace BgAdvisorBridge
                          bool keepAlive = true, bool gzip = false)
         {
             var reason = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request"
-                       : status == 403 ? "Forbidden" : status == 404 ? "Not Found"
+                       : status == 401 ? "Unauthorized" : status == 403 ? "Forbidden" : status == 404 ? "Not Found"
                        : status == 405 ? "Method Not Allowed" : status == 413 ? "Payload Too Large" : "Error";
             var h = new StringBuilder();
             h.Append("HTTP/1.1 ").Append(status).Append(' ').Append(reason).Append("\r\n");
@@ -444,7 +492,7 @@ namespace BgAdvisorBridge
                 if (preflight)
                 {
                     h.Append("Access-Control-Allow-Methods: GET, POST, DELETE\r\n");
-                    h.Append("Access-Control-Allow-Headers: Content-Type\r\n");
+                    h.Append("Access-Control-Allow-Headers: Content-Type, Authorization\r\n");
                     h.Append("Access-Control-Allow-Private-Network: true\r\n");
                     h.Append("Access-Control-Max-Age: 600\r\n");
                 }

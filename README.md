@@ -25,7 +25,8 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
 2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「BG Advisor」。
-3. 打開 <https://wsed0412.github.io/bg_advisor_web/>，按「連線 HDT 外掛」；瀏覽器問「存取本機網路上的裝置」時按允許。
+3. 在外掛清單選 BG Advisor，按「開啟復盤網頁 Open review page」（第一次一定要從 HDT 開啟，網頁才會拿到外掛的連線密碼）；
+   瀏覽器問「存取本機網路上的裝置」時按允許。之後也可以直接打開 <https://wsed0412.github.io/bg_advisor_web/> 按「連線 HDT 外掛」。
 
 之後每局英雄戰場結束，HDT 會自動打開這局的報告（網頁開著的話會直接在那個分頁分析）。
 外掛只在 `127.0.0.1` 上提供 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
@@ -55,7 +56,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 ### 隱私與安全
 
-以下依照目前的程式碼（外掛 0.3.0）說明。
+以下依照目前的程式碼（外掛 0.4.0）說明。
 
 **外掛讀取的檔案**
 - 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的
@@ -66,6 +67,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 - `文件\BG Advisor\logs\<工作階段>.Power.log.gz`：只備份含有英雄戰場對局的紀錄檔。
 - `文件\BG Advisor\reports\<key>.json`：網頁產生的報告；在網頁上刪除的報告會移到 `reports\deleted`，不會真的刪掉。
 - `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄上次用的是哪個瀏覽器。
+- `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`：外掛的連線密碼（token，見下方）。
 
 **網路**
 - 外掛只在本機 `127.0.0.1` 的 47613～47617 埠提供資料，其他電腦連不到；外掛不會主動連線到任何網站。
@@ -78,13 +80,19 @@ Chrome、Edge、Brave、Firefox 都能用。
 **匯出**：匯出時會問要不要隱藏你的 BattleTag；選「是」會把你的名稱（含 `#1234` 和不含的寫法）換成 `Player`，
 報告的 key 也一起改。對手的名稱不會被換掉。
 
-**誰能存取外掛（目前的限制）**
-- 只接受 `Host` 是 `127.0.0.1` 或 `localhost` 的請求（防 DNS rebinding）。
-- 瀏覽器裡只有這個網站和本機網頁（`http://localhost`、`http://127.0.0.1` 的任何埠）能讀取回應；其他網站的請求直接拒絕。
-- 寫入和刪除備份的報告必須帶上這些允許的來源。
-- 已知的不足：本機其他程式開的網頁（任何埠的 localhost）目前也能讀紀錄檔、改備份；之後會加上只有從 HDT 開啟的網頁才知道的密碼（token）來補上。
-  本機的程式本來就能直接讀這些檔案，這項限制針對的是網頁。
-- 網站的網址 `wsed0412.github.io` 和同一個 GitHub 帳號的其他 GitHub Pages 網站共用同一個來源。
+**誰能存取外掛**
+- **連線密碼（token）**：外掛第一次啟動時用密碼學安全的亂數產生 32 bytes（43 個字元），存在 `BgAdvisorToken.txt`，之後沿用。
+  外掛打開網頁時把它放在網址 `#/bridge/<埠>/<token>`；網頁把它存進瀏覽器（IndexedDB），並立刻從網址上拿掉。
+- 讀紀錄檔、讀寫或刪除備份的報告，都要帶 `Authorization: Bearer <token>`，外掛用常數時間比較，不符回 401。
+  沒有 token 時 `/status` 只回答外掛的名稱和版本，不含任何路徑；網頁會請你從 HDT 開啟一次。
+  所以本機其他程式開的網頁（任何埠的 localhost）就算來源被允許，也讀不到紀錄檔、改不了備份。
+- 另外仍然只接受 `Host` 是 `127.0.0.1` 或 `localhost` 的請求（防 DNS rebinding），瀏覽器裡也只有這個網站和本機網頁能讀取回應，
+  其他網站的請求直接拒絕。
+- **換密碼**：HDT 的外掛選單有「BG Advisor：重設網頁連線 Reset web connection」，會產生新的 token 並用新網址打開網頁；
+  舊的網頁之後會被拒絕，需要從 HDT 重新開啟。也可以刪掉 `BgAdvisorToken.txt` 再重開 HDT。
+- **限制**：token 也會留在瀏覽器的網站資料和瀏覽紀錄（網址的 # 部分）裡；能讀到這些的本機程式本來就能直接讀紀錄檔。
+  網站的網址 `wsed0412.github.io` 和同一個 GitHub 帳號的其他 GitHub Pages 網站共用同一個來源，那些網站的程式也能讀到這個網站存的 token。
+- 外掛 0.3.0 以前沒有 token：本機任何網頁都能讀紀錄檔、改備份，請更新。
 
 **檢查下載的外掛**：`plugin/version.json` 裡的 `sha256` 是網站上 DLL 的 SHA-256（由 `plugin\build.ps1 -Publish`
 產生，CI 會檢查兩者一致）。下載後在 PowerShell 執行：
@@ -98,23 +106,28 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 #### Privacy and security (English)
 
-As of the current code (plugin 0.3.0):
+As of the current code (plugin 0.4.0):
 
 - **Read by the plugin**: `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (only files in
   that listing can be served), and browser install paths in the Windows registry (to open the report in your browser).
 - **Written by the plugin**: `Documents\BG Advisor\logs\<session>.Power.log.gz` (only sessions with a Battlegrounds
   game), `Documents\BG Advisor\reports\<key>.json` (reports from the page; deleted ones move to `reports\deleted`),
-  and `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser last used).
+  `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser last used) and
+  `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt` (the plugin's token, below).
 - **Network**: the plugin listens on `127.0.0.1` ports 47613-47617 only and connects to nothing. The page downloads
   only its own files from GitHub Pages and reads logs from the local plugin. No analytics, ads or third-party code;
   GitHub sees your IP like any web site. Analysis runs in the browser; logs and reports are never uploaded.
 - **Reports** contain your BattleTag, opponents' names as seen in the log, heroes, boards and scores. Exporting asks
   whether to hide your BattleTag (replaced by `Player`, also in the report key); opponents' names are kept.
-- **Access to the plugin**: `Host` must be `127.0.0.1`/`localhost`; only this site and local pages
-  (`http://localhost`, `http://127.0.0.1`, any port) may read responses; other sites are refused; writes need one
-  of those origins. Known gap: a page served by another local program can currently read logs and change the backup;
-  a token known only to pages opened from HDT will close it. `wsed0412.github.io` is shared with the account's other
-  GitHub Pages sites.
+- **Access to the plugin**: on first start the plugin makes a token (32 random bytes from a cryptographic
+  generator, 43 characters), keeps it in `BgAdvisorToken.txt`, and passes it only in the address it opens
+  (`#/bridge/<port>/<token>`); the page stores it in IndexedDB and removes it from the address. Reading logs and
+  reading, writing or deleting backed-up reports need `Authorization: Bearer <token>` (compared in constant time;
+  401 otherwise); without it `/status` only gives the plugin's name and version. So a page served by another local
+  program cannot read the logs or change the backup. `Host` must still be `127.0.0.1`/`localhost`, and only this site
+  and local pages may read responses. HDT's plugin menu has "Reset web connection" to make a new token (or delete
+  the file and restart HDT). The token also stays in the browser's site data and history; `wsed0412.github.io` is
+  shared with the account's other GitHub Pages sites. Plugins before 0.4.0 have no token: please update.
 - **Checking the DLL**: compare `(Get-FileHash <file> -Algorithm SHA256).Hash` with `sha256` in
   `plugin/version.json` (shown on the page; CI checks it matches the published DLL). The DLL is not code-signed, so
   Windows asks you to unblock it and antivirus may flag it; the build is deterministic, so building it yourself
