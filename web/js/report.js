@@ -310,6 +310,86 @@ function luckHtml(l) {
   return h + `<p class="note">${esc(t('r.luckNote'))}</p>`;
 }
 
+/** Per player: health after each round (null once knocked out), in final standing order. */
+function lifeRows(standings) {
+  const rows = new Map();
+  standings.forEach((st, i) => {
+    for (const p of st.players) {
+      if (!rows.has(p.pid)) rows.set(p.pid, { pid: p.pid, hero: p.hero, me: p.me, life: standings.map(() => null), out: null });
+      const r = rows.get(p.pid);
+      if (r.out === null) {
+        r.life[i] = Math.max(0, p.life);
+        if (p.life <= 0) r.out = i;
+      }
+      r.place = p.place;
+    }
+  });
+  return [...rows.values()].sort((a, b) => (a.place || 9) - (b.place || 9) || (b.me - a.me));
+}
+
+/** My health's rank among the players still alive, after each round. */
+function myRank(standings) {
+  return standings.map(st => {
+    const me = st.players.find(p => p.me);
+    const alive = st.players.filter(p => p.life > 0);
+    if (!me || me.life <= 0) return '—';
+    return `${1 + alive.filter(p => p.life > me.life).length}/${alive.length}`;
+  });
+}
+
+/** Every player's health after each round: mine highlighted, the others in grey. */
+function lifeHtml(standings) {
+  if (!standings || standings.length < 2) return '';
+  const rows = lifeRows(standings);
+  const rounds = standings.map(st => st.round);
+  const [w, h, l, r, tp, b] = [640, 220, 30, 40, 10, 24];
+  let top = Math.max(10, ...rows.flatMap(x => x.life.filter(v => v !== null)));
+  top = Math.ceil(top / 10) * 10;
+  const px = i => l + (w - l - r) * i / (rounds.length - 1);
+  const py = v => tp + (h - tp - b) * (1 - v / top);
+  const f = v => v.toFixed(1);
+  let grid = '';
+  for (let v = 0; v <= top; v += 10) {
+    grid += `<line x1="${l}" x2="${w - r}" y1="${f(py(v))}" y2="${f(py(v))}" class="lc-grid"/>`
+      + `<text x="${l - 6}" y="${f(py(v) + 4)}" text-anchor="end" class="lc-ax">${v}</text>`;
+  }
+  const xs = rounds.map((n, i) => `<text x="${f(px(i))}" y="${h - 6}" text-anchor="middle" class="lc-ax">${n}</text>`).join('');
+  let lines = '';
+  for (const x of [...rows].sort((a, b) => a.me - b.me)) {  // mine drawn last, on top
+    const pts = x.life.map((v, i) => (v === null ? null : [px(i), py(v)])).filter(Boolean);
+    const cls = x.me ? 'lc-me' : 'lc-other';
+    lines += `<polyline points="${pts.map(([a, c]) => `${f(a)},${f(c)}`).join(' ')}" class="${cls}"/>`;
+    const [la, lc] = pts[pts.length - 1];
+    if (x.out !== null) lines += `<path d="M${f(la - 4)},${f(lc - 4)}l8,8m0,-8l-8,8" class="${cls} lc-x"/>`;
+    if (x.me) {
+      lines += pts.map(([a, c]) => `<circle cx="${f(a)}" cy="${f(c)}" r="3.5" class="lc-dot"/>`).join('');
+      lines += `<text x="${f(la + 8)}" y="${f(lc + 4)}" class="lc-lbl">${esc(t('r.lifeYou'))}</text>`;
+    }
+  }
+  const step = (w - l - r) / (rounds.length - 1);
+  const out = new Map(rows.map(x => [x.pid, x.out]));
+  const hits = standings.map((st, i) => {
+    // The players still in the game, and those knocked out in this round.
+    const ps = [...st.players].sort((a, b) => b.life - a.life).filter(p => p.life > 0 || out.get(p.pid) === i);
+    const tip = [t('r.lifeAfter', { round: st.round }),
+      ...ps.map(p => `${p.me ? '▶ ' + t('r.lifeYou') + '：' : ''}${card(p.hero)}　${p.life > 0 ? p.life : t('r.lifeOut')}`)];
+    return `<rect x="${f(px(i) - step / 2)}" y="${tp}" width="${f(step)}" height="${h - tp - b}" class="lc-hit">`
+      + `<title>${esc(tip.join('\n'))}</title></rect>`;
+  }).join('');
+  const svg = `<svg viewBox="0 0 ${w} ${h}" class="lifechart" role="img" aria-label="${esc(t('r.lifeAria'))}">${grid}${xs}${lines}${hits}</svg>`;
+  const body = rows.map(x => {
+    const name = x.me ? t('r.lifeMe', { name: card(x.hero) }) : card(x.hero);
+    const place = x.place ? ` <span class="mute small">${esc(t('r.place', { place: x.place }))}</span>` : '';
+    const cells = x.life.map((v, i) => `<td>${v === null ? '' : i === x.out ? '×' : v}</td>`).join('');
+    return `<tr${x.me ? ' class="mine"' : ''}><th>${esc(name)}${place}</th>${cells}</tr>`;
+  }).join('');
+  return `<h3>${esc(t('r.life'))} <span class="mute small">${esc(t('r.lifeSub'))}</span></h3>${svg}`
+    + `<p class="note">${esc(t('r.lifeNote'))}</p>`
+    + `<details><summary>${esc(t('r.lifeTable'))}</summary><div class="tablewrap"><table class="tempo">`
+    + `<tr><th>${esc(t('r.tempoRound'))}</th>${rounds.map(n => `<th>${n}</th>`).join('')}</tr>`
+    + `<tr><th>${esc(t('r.lifeRank'))}</th>${myRank(standings).map(v => `<td>${v}</td>`).join('')}</tr>${body}</table></div></details>`;
+}
+
 /** Tavern tier per round against the opponent's and a common pace. */
 function tempoHtml(s) {
   const tp = s.tempo || [];
@@ -355,7 +435,7 @@ export function renderGame(res) {
     + `<div class="mute small">${esc(res.date)}・${esc(res.player)}・${esc(t('r.client', { build: res.build }))}</div></div>`
     + `<div class="place ${placeCls(place)}">${esc(place ? t('r.place', { place }) : t('r.placeUnknown'))}</div></div>`
     + `<div class="tiles">${tiles}</div><div class="strip">${strip}</div>`
-    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${lossesHtml(s)}${luckHtml(res.luck)}${tempoHtml(s)}${warn}</section>`
+    + `<h3>${esc(t('r.attention'))}</h3><ul>${missHtml}</ul>${lossesHtml(s)}${lifeHtml(res.standings)}${luckHtml(res.luck)}${tempoHtml(s)}${warn}</section>`
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
     + `<p class="note">${esc(t('r.pickFooter'))}</p>`

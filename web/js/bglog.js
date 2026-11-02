@@ -183,9 +183,31 @@ class Reader {
     }
   }
 
+  /** Every player's life and place now, from the leaderboard heroes. */
+  standing(rnd) {
+    const me = this.log.localPlayer;
+    const myPid = me != null ? this.log.entity(this.log.entity(me).get('HERO_ENTITY')).get('PLAYER_ID') : 0;
+    const heroes = new Map();
+    for (const e of this.log.entities.values()) {
+      const pid = e.get('PLAYER_ID');
+      if (e.cardtype === 'HERO' && pid && e.get('PLAYER_LEADERBOARD_PLACE')
+          && (e.zone === 'SETASIDE' || e.zone === 'PLAY' || e.zone === 'GRAVEYARD')
+          && (!heroes.has(pid) || e.id < heroes.get(pid).id)) heroes.set(pid, e);
+    }
+    if (heroes.size < 2) return;
+    const players = [...heroes.keys()].sort((a, b) => a - b).map(pid => {
+      const e = heroes.get(pid);
+      return { pid, hero: baseId(e.cardId), life: this.life(e.id),
+               place: e.get('PLAYER_LEADERBOARD_PLACE'), me: pid === myPid };
+    });
+    this.g.standings = this.g.standings.filter(x => x.round !== rnd);
+    this.g.standings.push({ round: rnd, players });
+  }
+
   finishCombat() {
     const [combat, myLife, oppLife] = this.pending;
     this.pending = null;
+    this.standing(combat.round);
     const ps = this.players();
     if (!ps) return;
     const [me] = ps;
@@ -374,7 +396,7 @@ export function readGames(files) {
     const log = new PowerLog();
     const game = { source: rg.source, build: 0, player: localName(rg), combats: [], plays: [], picks: [],
                    found: [], copied: new Map(), reconnect: rg.reconnect,
-                   start: '', complete: false, place: 0, hero: '', cardChanges: [] };
+                   start: '', complete: false, place: 0, hero: '', cardChanges: [], standings: [] };
     const reader = new Reader(log, game);
     rg.run(log);
     if (log.header.gameType !== 'GT_BATTLEGROUNDS') continue;
@@ -446,6 +468,7 @@ export function mergeReconnects(games) {
       prev.complete = g.complete;
       prev.place = g.place || prev.place;
       prev.hero = g.hero || prev.hero;
+      prev.standings.push(...g.standings);
       const known = new Set(prev.cardChanges.map(c => c.card));
       prev.cardChanges.push(...g.cardChanges.filter(c => !known.has(c.card)));
     } else {

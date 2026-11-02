@@ -113,6 +113,7 @@ export async function reviewGame(engine, sim, game, prec = PRECISION.full, progr
     }
   }
   progress(rounds.length, rounds.length, null);
+  result.standings = game.standings || [];
   result.luck = await gameLuck(engine, sim, result, game.picks || [], game.combats, game.lobby || [],
                                Math.max(50, Math.floor(prec.dec / LUCK_SHARE)));
   summarize(result);

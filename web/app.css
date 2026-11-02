@@ -65,6 +65,13 @@ table.tempo td.behind{color:var(--bad);font-weight:700}
 .luck-good{color:var(--good);border:1px solid var(--good)}
 .luck-bad{color:var(--bad);border:1px solid var(--bad)}
 .luck-even{color:var(--mute);border:1px solid var(--mute)}
+.lifechart{width:100%;height:auto;max-width:720px;display:block}
+.lc-grid{stroke:var(--line);stroke-width:1}.lc-ax{fill:var(--mute);font-size:11px}
+.lc-other{fill:none;stroke:var(--mute);stroke-opacity:.45;stroke-width:1.5;stroke-linejoin:round}
+.lc-me{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
+.lc-x{stroke-opacity:.8}.lc-dot{fill:var(--accent);stroke:var(--card);stroke-width:2}
+.lc-lbl{fill:var(--ink);font-size:12px;font-weight:600}
+.lc-hit{fill:transparent}.lc-hit:hover{fill:var(--ink);fill-opacity:.05}
 table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 tr.mine td{font-weight:600}tr.best td{background:var(--best)}
