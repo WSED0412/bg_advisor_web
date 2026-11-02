@@ -1,14 +1,21 @@
 // A tiny HTTP server on 127.0.0.1 that hands the bg_advisor web page the recent Power.log
 // files, so the page needs no folder permission and Logs can stay under Program Files.
 //
-//   GET /status?browser=b  {"name","version","port","gameEnds","logDir","logDirOk","browser"}
+//   GET /status?browser=b  {"name","version","port","gameEnds","logDir","logDirOk","browser",
+//                           "backupDir","logBackups","reports"}
 //                          (b: the browser the page runs in, remembered to open it later)
-//   GET /logs              [{"source","size","modified"}]  Power.log of the recent sessions
-//   GET /log?source=...    the raw text of one of those files
+//   GET /logs[?all=1]      [{"source","size","modified"}]  Power.log of the recent sessions
+//                          (all=1: every session, also those only left in the backup)
+//   GET /log?source=...    the raw text of one of those files (from Logs, or else the backup)
+//   GET /reports           ["key", ...]  reports kept in the backup
+//   GET /report?key=...    one of them (JSON)
+//   POST /report?key=...   keep a report (JSON body) in the backup
+//   DELETE /report?key=... move a report to the backup's "deleted" folder
 //
 // Only the web app's origin (and local test pages) get CORS access, the Host header must be
 // 127.0.0.1/localhost (no DNS rebinding), and only files from the current listing are served.
-// The server never writes anything and never listens on another interface.
+// Writes need an allowed Origin and only touch Documents\BG Advisor\reports (see Backup.cs).
+// The server never listens on another interface.
 
 using System;
 using System.Collections.Generic;
@@ -29,11 +36,14 @@ namespace BgAdvisorBridge
         public const string SiteUrl = "https://wsed0412.github.io/bg_advisor_web/";
         public const int FirstPort = 47613;
         public const int LastPort = 47617;
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
         const int RecentSessions = 3;
+
+        const int MaxReportBytes = 32 * 1024 * 1024;
 
         readonly Func<string> _logDir;
         readonly Action<string> _log;
+        readonly Backup _backup;
         TcpListener _listener;
         Thread _thread;
         volatile bool _running;
@@ -55,9 +65,10 @@ namespace BgAdvisorBridge
             get { return new DateTime(Interlocked.Read(ref _lastPollTicks), DateTimeKind.Utc); }
         }
 
-        public BridgeServer(Func<string> logDir, Action<string> log = null)
+        public BridgeServer(Func<string> logDir, Backup backup, Action<string> log = null)
         {
             _logDir = logDir;
+            _backup = backup;
             _log = log ?? (s => { });
         }
 
@@ -199,7 +210,15 @@ namespace BgAdvisorBridge
                 return false;
             }
             if (r.Method == "OPTIONS") { Send(s, 204, null, new byte[0], origin, true); return true; }
-            if (r.Method != "GET") { Send(s, 405, "text/plain", Bytes("GET only"), origin, false, false); return false; }
+            if (r.Method == "POST" || r.Method == "DELETE")
+            {
+                byte[] body;
+                if (!ReadBody(s, r, out body)) { Send(s, 413, "text/plain", Bytes("body too large"), origin, false, false); return false; }
+                // Writes only from the web app itself, never from a request without an Origin.
+                if (!AllowedOrigin(origin)) { Send(s, 403, "text/plain", Bytes("origin required"), null, false, false); return false; }
+                return HandleWrite(s, r, origin, body);
+            }
+            if (r.Method != "GET") { Send(s, 405, "text/plain", Bytes("method not allowed"), origin, false, false); return false; }
 
             if (r.Path == "/status")
             {
@@ -215,21 +234,31 @@ namespace BgAdvisorBridge
                 var json = "{\"name\":\"bg_advisor_bridge\",\"version\":" + Json(Version) + ",\"port\":" + Port
                            + ",\"gameEnds\":" + GameEnds + ",\"logDir\":" + Json(dir)
                            + ",\"logDirOk\":" + (dir != null && Directory.Exists(dir) ? "true" : "false")
-                           + ",\"browser\":" + Json(Browser) + "}";
+                           + ",\"browser\":" + Json(Browser) + ",\"backupDir\":" + Json(_backup.Root)
+                           + ",\"logBackups\":" + SafeCount(() => _backup.LogSessions().Count)
+                           + ",\"reports\":" + SafeCount(() => _backup.ReportKeys().Count) + "}";
                 Send(s, 200, "application/json", Bytes(json), origin);
             }
             else if (r.Path == "/logs")
             {
-                var items = Listing().Select(f => "{\"source\":" + Json(f.Item1) + ",\"size\":" + f.Item2.Length
+                var items = Listing(QueryValue(r.Query, "all") == "1").Select(f => "{\"source\":" + Json(f.Item1) + ",\"size\":" + SizeOf(f.Item2)
                     + ",\"modified\":" + Json(f.Item2.LastWriteTimeUtc.ToString("o", CultureInfo.InvariantCulture)) + "}");
                 Send(s, 200, "application/json", Bytes("[" + string.Join(",", items) + "]"), origin);
             }
             else if (r.Path == "/log")
             {
                 string source = QueryValue(r.Query, "source");
-                var hit = Listing().FirstOrDefault(f => f.Item1 == source);
+                var hit = Listing(true).FirstOrDefault(f => f.Item1 == source);
                 if (hit == null) { Send(s, 404, "text/plain", Bytes("not a recent Power.log"), origin); return true; }
                 byte[] data;
+                if (hit.Item2.Name.EndsWith(".gz", StringComparison.Ordinal))
+                {
+                    // Only in the backup: already gzip, so send it as is (or unpacked).
+                    data = ReadBackup(hit.Item2, gzip);
+                    Send(s, 200, "text/plain; charset=utf-8", data, origin, false, true, gzip);
+                    _log("sent " + source + " from the backup (" + data.Length + " bytes)");
+                    return true;
+                }
                 // Hearthstone may be writing the file: share everything.
                 using (var fs = new FileStream(hit.Item2.FullName, FileMode.Open, FileAccess.Read,
                                                FileShare.ReadWrite | FileShare.Delete))
@@ -249,6 +278,17 @@ namespace BgAdvisorBridge
                 Send(s, 200, "text/plain; charset=utf-8", data, origin, false, true, gzip);
                 _log("sent " + source + " (" + data.Length + " bytes" + (gzip ? ", gzip" : "") + ")");
             }
+            else if (r.Path == "/reports")
+            {
+                var keys = _backup.ReportKeys().Select(Json);
+                Send(s, 200, "application/json", Bytes("[" + string.Join(",", keys) + "]"), origin);
+            }
+            else if (r.Path == "/report")
+            {
+                var data = _backup.ReadReport(QueryValue(r.Query, "key"));
+                if (data == null) Send(s, 404, "text/plain", Bytes("no such report"), origin);
+                else Send(s, 200, "application/json; charset=utf-8", data, origin);
+            }
             else
             {
                 Send(s, 404, "text/plain", Bytes("not found"), origin);
@@ -256,26 +296,106 @@ namespace BgAdvisorBridge
             return true;
         }
 
+        bool HandleWrite(Stream s, Request r, string origin, byte[] body)
+        {
+            string key = QueryValue(r.Query, "key");
+            if (r.Path != "/report" || !Backup.ValidKey(key))
+            {
+                Send(s, 404, "text/plain", Bytes("not found"), origin);
+                return true;
+            }
+            if (r.Method == "DELETE")
+            {
+                bool gone = _backup.DeleteReport(key);
+                Send(s, 200, "application/json", Bytes(gone ? "{\"deleted\":true}" : "{\"deleted\":false}"), origin);
+                return true;
+            }
+            if (body.Length == 0 || body[0] != (byte)'{')
+            {
+                Send(s, 400, "text/plain", Bytes("JSON object expected"), origin);
+                return true;
+            }
+            _backup.SaveReport(key, body);
+            Send(s, 200, "application/json", Bytes("{\"saved\":true}"), origin);
+            return true;
+        }
+
+        static bool ReadBody(Stream s, Request r, out byte[] body)
+        {
+            body = new byte[0];
+            string len;
+            long n = 0;
+            if (r.Headers.TryGetValue("Content-Length", out len) && !long.TryParse(len, out n)) return false;
+            if (n < 0 || n > MaxReportBytes) return false;
+            body = new byte[n];
+            int off = 0;
+            while (off < n)
+            {
+                int got = s.Read(body, off, (int)n - off);
+                if (got <= 0) throw new IOException("body cut off");
+                off += got;
+            }
+            return true;
+        }
+
+        static long SizeOf(FileInfo f)
+        {
+            return f.Name.EndsWith(".gz", StringComparison.Ordinal) ? Backup.OriginalSize(f) : f.Length;
+        }
+
+        static int SafeCount(Func<int> f)
+        {
+            try { return f(); } catch { return 0; }
+        }
+
+        static byte[] ReadBackup(FileInfo gz, bool keepGzip)
+        {
+            if (keepGzip) return File.ReadAllBytes(gz.FullName);
+            using (var fs = new FileStream(gz.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var z = new GZipStream(fs, CompressionMode.Decompress))
+            using (var ms = new MemoryStream())
+            {
+                z.CopyTo(ms);
+                return ms.ToArray();
+            }
+        }
+
         string SafeLogDir()
         {
             try { return _logDir(); } catch { return null; }
         }
 
-        /// <summary>(source, file) of Power.log in the most recent session folders, oldest first.</summary>
-        List<Tuple<string, FileInfo>> Listing()
+        /// <summary>(source, file) of Power.log in the most recent session folders (all: every
+        /// session, also those only left in the backup), oldest first. A session still in Logs is
+        /// served from there; its source is the same either way.</summary>
+        List<Tuple<string, FileInfo>> Listing(bool all = false)
         {
             var outList = new List<Tuple<string, FileInfo>>();
             string dir = SafeLogDir();
-            if (dir == null || !Directory.Exists(dir)) return outList;
-            var root = new DirectoryInfo(dir);
-            var sessions = root.GetDirectories("Hearthstone_*").OrderBy(d => d.Name, StringComparer.Ordinal).ToList();
-            foreach (var d in sessions.Skip(Math.Max(0, sessions.Count - RecentSessions)))
+            bool live = dir != null && Directory.Exists(dir);
+            string rootName = live ? new DirectoryInfo(dir).Name : "Logs";
+            var sessions = new SortedDictionary<string, FileInfo>(StringComparer.Ordinal);
+            try
             {
-                var f = new FileInfo(Path.Combine(d.FullName, "Power.log"));
-                if (f.Exists) outList.Add(Tuple.Create(root.Name + "/" + d.Name + "/Power.log", f));
+                foreach (var name in _backup.LogSessions()) sessions[name] = _backup.LogBackup(name);
             }
-            var flat = new FileInfo(Path.Combine(dir, "Power.log"));  // older clients write Logs/Power.log
-            if (flat.Exists) outList.Add(Tuple.Create(root.Name + "/Power.log", flat));
+            catch { }
+            if (live)
+            {
+                foreach (var d in new DirectoryInfo(dir).GetDirectories("Hearthstone_*"))
+                {
+                    var f = new FileInfo(Path.Combine(d.FullName, "Power.log"));
+                    if (f.Exists) sessions[d.Name] = f;
+                }
+            }
+            var list = sessions.Where(kv => kv.Value != null).ToList();
+            foreach (var kv in all ? list : list.Skip(Math.Max(0, list.Count - RecentSessions)))
+                outList.Add(Tuple.Create(rootName + "/" + kv.Key + "/Power.log", kv.Value));
+            if (live)
+            {
+                var flat = new FileInfo(Path.Combine(dir, "Power.log"));  // older clients write Logs/Power.log
+                if (flat.Exists) outList.Add(Tuple.Create(rootName + "/Power.log", flat));
+            }
             return outList;
         }
 
@@ -308,8 +428,9 @@ namespace BgAdvisorBridge
         static void Send(Stream s, int status, string type, byte[] body, string origin, bool preflight = false,
                          bool keepAlive = true, bool gzip = false)
         {
-            var reason = status == 200 ? "OK" : status == 204 ? "No Content" : status == 403 ? "Forbidden"
-                       : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Error";
+            var reason = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request"
+                       : status == 403 ? "Forbidden" : status == 404 ? "Not Found"
+                       : status == 405 ? "Method Not Allowed" : status == 413 ? "Payload Too Large" : "Error";
             var h = new StringBuilder();
             h.Append("HTTP/1.1 ").Append(status).Append(' ').Append(reason).Append("\r\n");
             if (type != null) h.Append("Content-Type: ").Append(type).Append("\r\n");
@@ -322,8 +443,8 @@ namespace BgAdvisorBridge
                 h.Append("Access-Control-Allow-Origin: ").Append(origin).Append("\r\nVary: Origin\r\n");
                 if (preflight)
                 {
-                    h.Append("Access-Control-Allow-Methods: GET\r\n");
-                    h.Append("Access-Control-Allow-Headers: *\r\n");
+                    h.Append("Access-Control-Allow-Methods: GET, POST, DELETE\r\n");
+                    h.Append("Access-Control-Allow-Headers: Content-Type\r\n");
                     h.Append("Access-Control-Allow-Private-Network: true\r\n");
                     h.Append("Access-Control-Max-Age: 600\r\n");
                 }

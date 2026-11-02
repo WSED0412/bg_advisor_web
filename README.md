@@ -3,7 +3,8 @@
 **網址：<https://wsed0412.github.io/bg_advisor_web/>**
 
 讀取爐石戰記的 `Power.log`，用 [TavernGym](https://github.com/MCG-NJU/AutoTavern) 模擬器重建每回合的戰鬥，
-替英雄戰場的決策打分數。不用安裝任何東西，所有分析都在你的瀏覽器裡進行，紀錄檔不會上傳。
+替英雄戰場的決策打分數。搭配 Hearthstone Deck Tracker 外掛使用：所有分析都在你的瀏覽器裡進行，紀錄檔不會上傳，
+紀錄檔和報告都會備份在你的電腦上。
 
 - **站位**：試過所有排法，和你的排法比勝率（怎麼排都很難贏時改比受到的傷害）
 - **指向性目標**：法術、英雄技能、戰吼指定友方隨從時，每個目標都試一次
@@ -19,31 +20,38 @@
 
 ## 使用方式
 
-1. 用 **Chrome 或 Edge** 打開網址，按「選擇 Logs 資料夾」，選爐石安裝資料夾裡的 `Logs`。
-2. 開著這個分頁去打英雄戰場，每局結束後會自動分析，報告出現在列表裡。
-
-瀏覽器不允許網頁讀取 `Program Files` 裡的資料夾；如果選不了，網頁上有一次性的設定說明
-（把 Logs 搬到「文件」並在原處留一個連結）。也可以每局結束後手動選擇或拖曳 `Power.log`。
-**Brave** 預設關閉這個功能：到 `brave://flags/#file-system-access-api` 改成 Enabled 並重新啟動即可；
-不開也能手動選檔。其他瀏覽器（Firefox、Safari）只能用手動選檔。
-
-### 使用 Hearthstone Deck Tracker 的話：裝外掛最省事
-
-`plugin/` 是一個 HDT 外掛：每局英雄戰場結束後自動打開這局的報告，不需要選資料夾，也不用搬 Logs，
+網頁透過 **Hearthstone Deck Tracker（HDT）外掛**讀取爐石的紀錄檔，不需要選資料夾或上傳檔案；
 Chrome、Edge、Brave、Firefox 都能用。
 
 1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
 2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「BG Advisor」。
 3. 按外掛的「開啟復盤網頁」，瀏覽器問「存取本機網路上的裝置」時按允許。
 
-外掛只在 `127.0.0.1` 上提供最近的 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
-自己編譯：`powershell -ExecutionPolicy Bypass -File pluginuild.ps1 -Install`（需要 Visual Studio Build Tools）。
+之後每局英雄戰場結束，HDT 會自動打開這局的報告（網頁開著的話會直接在那個分頁分析）。
+外掛只在 `127.0.0.1` 上提供 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
+爐石的 `log.config` 需開啟 `[Power]` 紀錄（HDT 會幫你設定）。
+
+### 備份
+
+外掛 0.3.0 起會把資料備份在 **文件\BG Advisor**：
+
+| 資料夾 | 內容 |
+|---|---|
+| `logs\` | 每個有英雄戰場對局的 `Power.log`（gzip 壓縮）。HDT 啟動時和每局結束後更新；爐石只保留最近幾次的紀錄檔，這裡會一直留著 |
+| `reports\` | 網頁做出的每一份報告（JSON）。分析完就存一份 |
+| `reports\deleted\` | 在網頁上刪掉的報告，移到這裡而不是真的刪除 |
+
+- 網頁連上外掛時，兩邊缺的報告會互相補齊：清除瀏覽器資料、換瀏覽器或換電腦（把整個資料夾複製過去）後，重新連線就會還原。
+- 網頁上的「分析備份裡所有對局」會把備份裡還沒有報告的對局全部分析一遍（模擬器或評分更新後，也可以先刪掉報告再重新分析）。
+- 想要異地備份，把 `文件\BG Advisor` 放進 OneDrive 或其他雲端硬碟同步即可。
+
+### 外掛更新與編譯
+
+自己編譯：`powershell -ExecutionPolicy Bypass -File plugin\build.ps1 -Install`（需要 Visual Studio Build Tools）。
 
 外掛很少需要更新：卡片資料、評分和介面都在網站上，網站更新後重新整理頁面即可。外掛真的出新版時，
 網頁連線時會比對 `web/plugin/version.json`，舊版會看到更新提示；低於 `min` 的版本會暫停自動分析並請你更新。
-發布新版外掛：改 `BridgeServer.cs` 的 `Version`，再執行 `pluginuild.ps1 -Publish`（不相容的改動加上 `-MinCompatible 新版本`）。
-
-爐石的 `log.config` 需開啟 `[Power]` 紀錄（大多數牌組追蹤器都會幫你設定）。
+發布新版外掛：改 `BridgeServer.cs` 的 `Version`，再執行 `plugin\build.ps1 -Publish`（不相容的改動加上 `-MinCompatible 新版本`）。
 
 ## 哪些東西會影響分數、哪些不會
 
@@ -115,8 +123,8 @@ Chrome、Edge、Brave、Firefox 都能用。
 | `web/js/powerlog.js`、`bglog.js` | 解析 Power.log、擷取戰鬥陣容與出牌 |
 | `web/js/scene.js`、`simcore.js`、`sim.js` | 重建局面、平行模擬（每個 Web Worker 一份模擬器） |
 | `web/js/scoring.js`、`positioning.js`、`decisions.js`、`luck.js`、`review.js` | 評分、運氣 |
-| `web/js/watch.js`、`app.js`、`report.js`、`store.js` | 監看資料夾、介面、報告、IndexedDB |
-| `plugin/` | HDT 外掛（C#）：本機橋接伺服器，對局結束時打開網頁 |
+| `web/js/app.js`、`report.js`、`store.js` | 介面（連線外掛、同步備份）、報告、IndexedDB |
+| `plugin/` | HDT 外掛（C#）：本機橋接伺服器，對局結束時打開網頁；備份紀錄檔和報告（`Backup.cs`） |
 
 推上 `main` 後，GitHub Actions 會編譯 WebAssembly 並部署到 GitHub Pages。
 

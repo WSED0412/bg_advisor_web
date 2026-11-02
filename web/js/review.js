@@ -24,7 +24,7 @@ const folderOf = src => {
 };
 
 /** Stable id of a game: its start time (to 0.1 microsecond) and the player, so the same game
- *  gets the same id whether it was read from the watched folder or picked by hand. */
+ *  gets the same id whether it was read from Logs or from the plugin's backup. */
 export function gameKey(g) {
   return `${g.start}_${g.player}`.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
 }

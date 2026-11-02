@@ -1,7 +1,8 @@
 // The review worker: reads Power.log files, finds Battlegrounds games without a report and
 // reviews them, posting progress and each finished report. It owns the simulation pool.
 //
-// in:  {type: 'review', files: [{handle | file, source}], known: [keys], precision, limit, onlyComplete}
+// in:  {type: 'review', files: [{handle | file, source}], known: [keys], precision, limit, onlyComplete,
+//        skipSource (games read only from this file are left out)}
 // out: {type: 'status', text} | {type: 'found', games: [{key, hero}]} |
 //      {type: 'progress', key, done, total, text} | {type: 'result', result} |
 //      {type: 'done', reviewed} | {type: 'error', message}
@@ -66,7 +67,8 @@ async function review(msg) {
     days.set(entry.source, day);
   }
   const known = new Set(msg.known || []);
-  let games = readGames(files).filter(g => g.combats.length && (!msg.onlyComplete || g.complete));
+  let games = readGames(files).filter(g => g.combats.length && (!msg.onlyComplete || g.complete)
+    && g.source !== msg.skipSource);
   games = games.filter(g => !known.has(gameKey(g)));
   if (msg.limit) games = games.slice(-msg.limit);
   self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g), hero: g.hero })) });

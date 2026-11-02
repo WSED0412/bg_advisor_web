@@ -1,7 +1,7 @@
-// The page: pick Hearthstone's Logs folder once (or connect the HDT plugin), then every finished
-// Battlegrounds game is reviewed in the background and its report shows up in the list.
+// The page: the HDT plugin hands it the Power.log files, every finished Battlegrounds game is
+// reviewed in the background and its report shows up in the list. The plugin also keeps a
+// backup of the logs and of every report (Documents\BG Advisor).
 
-import { canWatch, findLogs, LogWatcher } from './watch.js';
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
 import { esc, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
@@ -20,9 +20,6 @@ const POLL_MS = 3000;
 const BACKFILL_GAMES = 3;
 
 const state = {
-  dir: null,          // FileSystemDirectoryHandle
-  watcher: null,
-  timer: null,
   busy: false,
   progress: null,     // {hero, done, total, round}
   status: null,       // {key, vars}
@@ -38,7 +35,7 @@ const errorText = () => (!state.error ? '' : state.error.text || t(state.error.k
 let worker = null;
 let pending = Promise.resolve();
 
-function review(files, { limit = 0, onlyComplete = true } = {}) {
+function review(files, { limit = 0, onlyComplete = true, context = false } = {}) {
   pending = pending.then(() => new Promise(async (resolve) => {
     if (!worker) worker = new Worker(new URL('./review-worker.js', import.meta.url), { type: 'module' });
     state.busy = true;
@@ -56,6 +53,7 @@ function review(files, { limit = 0, onlyComplete = true } = {}) {
         renderStatus();
       } else if (m.type === 'result') {
         await saveGame(m.result);
+        backupReport(m.result);
         state.progress = null;
         onNewReport(m.result);
       } else if (m.type === 'done' || m.type === 'error') {
@@ -76,7 +74,10 @@ function review(files, { limit = 0, onlyComplete = true } = {}) {
       renderStatus();
       resolve();
     };
-    worker.postMessage({ type: 'review', files, known: await gameKeys(), precision: state.precision, limit, onlyComplete });
+    // context: the first file is only there for a game reconnected across files; games that lie
+    // wholly inside it were (or will be) reviewed with the file before it.
+    const skipSource = context && files.length > 1 ? files[0].source : null;
+    worker.postMessage({ type: 'review', files, known: await gameKeys(), precision: state.precision, limit, onlyComplete, skipSource });
   }));
   return pending;
 }
@@ -91,96 +92,20 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && document.title.startsWith('●')) document.title = t('app.title');
 });
 
-// ---------------------------------------------------------------- folder watching
-
-async function pickFolder() {
-  let dir;
-  try {
-    dir = await window.showDirectoryPicker({ id: 'hs-logs', mode: 'read' });
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    setError('err.folder', { msg: e.message });
-    const help = $('#help-blocked');
-    if (help) help.open = true;
-    render();
-    return;
-  }
-  await setKV('dir', dir);
-  await startWatching(dir, true);
-}
-
-async function resumeFolder() {
-  const dir = state.dir;
-  if (!dir) return;
-  if (await dir.requestPermission({ mode: 'read' }) === 'granted') await startWatching(dir, true);
-}
-
-async function startWatching(dir, backfill) {
-  stopWatching();
-  state.dir = dir;
-  state.error = null;
-  const logs = await findLogs(dir, true);
-  if (!logs.length) setError('err.noPowerLog', { dir: dir.name });
-  state.watcher = new LogWatcher(dir);
-  await state.watcher.start();
-  state.timer = setInterval(tick, POLL_MS);
-  render();
-  if (backfill && logs.length) review(logs.slice(-2), { limit: BACKFILL_GAMES });
-}
-
-function stopWatching() {
-  if (state.timer) clearInterval(state.timer);
-  state.timer = null;
-  state.watcher = null;
-}
-
-let ticking = false;
-async function tick() {
-  if (ticking || !state.watcher) return;
-  ticking = true;
-  try {
-    const ended = await state.watcher.poll();
-    if (ended.length) {
-      const logs = await findLogs(state.dir, true);
-      for (const f of ended) {
-        // The log before it may hold the start of a reconnected game.
-        const i = logs.findIndex(l => l.source === f.source);
-        const files = i > 0 ? [logs[i - 1], logs[i]] : [f];
-        await new Promise(r => setTimeout(r, 2000));  // let the client finish the game's last lines
-        review(files);
-      }
-    }
-  } catch (e) {
-    if (e.name === 'NotAllowedError') {
-      stopWatching();
-      setError('err.permission');
-      render();
-    }
-  } finally {
-    ticking = false;
-  }
-}
-
-async function analyzeAll() {
-  if (!state.dir) return;
-  review(await findLogs(state.dir, false));
-}
-
-function analyzeFiles(fileList) {
-  const files = [...fileList].filter(f => /\.(log|txt)$/i.test(f.name))
-    .map(f => ({ file: f, source: f.webkitRelativePath || f.name }));
-  if (files.length) review(files, { onlyComplete: false });
-}
-
 // ---------------------------------------------------------------- HDT plugin bridge
 //
 // The BG Advisor plugin for Hearthstone Deck Tracker serves the recent Power.log files on
 // 127.0.0.1 and opens this page at #/bridge/<port> when a game ends. The page then asks the
 // plugin every few seconds whether another game has ended. Local requests are only made after
 // the plugin opened the page, or when the user clicks "Connect to HDT plugin".
+//
+// Plugin 0.3.0 and later also keep a backup (Documents\BG Advisor): every Power.log with a
+// Battlegrounds game, and every report this page sends. On connecting, reports missing on
+// either side are copied over, so clearing the browser's data loses nothing.
 
 const BRIDGE_PORTS = [47613, 47614, 47615, 47616, 47617];
 const PLUGIN_URL = 'plugin/BgAdvisorBridge.dll';
+const BACKUP_VERSION = '0.3.0';  // first plugin with the backup
 
 /** -1, 0 or 1, comparing dotted versions ("0.1.0" < "0.10.0"). */
 function cmpVersion(a, b) {
@@ -218,10 +143,46 @@ function browserId() {
 }
 const statusPath = () => `/status?browser=${browserId()}`;
 
-async function bridgeFetch(path) {
-  const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store' });
+async function bridgeFetch(path, init = {}) {
+  const r = await fetch(`http://127.0.0.1:${state.bridge.port}${path}`, { cache: 'no-store', ...init });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r;
+}
+
+/** The connected plugin keeps backups. */
+const canBackup = () => !!(state.bridge && state.bridge.connected && cmpVersion(state.bridge.version, BACKUP_VERSION) >= 0);
+
+/** Keep a report in the plugin's backup (quietly: the report is in this browser anyway). */
+async function backupReport(res) {
+  if (!canBackup()) return;
+  try {
+    await bridgeFetch(`/report?key=${encodeURIComponent(res.key)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(res) });
+  } catch (e) {
+    tlog(`backup of ${res.key} failed: ${e.message}`);
+  }
+}
+
+/** Copy reports missing on either side: this browser <-> the plugin's backup. */
+async function syncReports() {
+  const b = state.bridge;
+  const remote = new Set(await (await bridgeFetch('/reports')).json());
+  const local = new Set(await gameKeys());
+  let restored = 0;
+  for (const key of remote) {
+    if (local.has(key)) continue;
+    try {
+      const res = await (await bridgeFetch(`/report?key=${encodeURIComponent(key)}`)).json();
+      if (res && res.key === key) { await saveGame(res); restored += 1; }
+    } catch (e) {
+      tlog(`restore of ${key} failed: ${e.message}`);
+    }
+  }
+  for (const key of local) {
+    if (!remote.has(key)) await backupReport(await getGame(key));
+  }
+  b.restored = restored;
+  if (restored && route().page === 'list') render();
 }
 
 async function startBridge(port) {
@@ -243,6 +204,9 @@ async function bridgeTick() {
     b.connected = true;
     b.error = '';
     b.logDirOk = st.logDirOk;
+    b.backupDir = st.backupDir || null;
+    b.logBackups = st.logBackups || 0;
+    b.reports = st.reports || 0;
     if (b.version !== st.version) {
       const rel = await pluginReleaseInfo();
       b.version = st.version;
@@ -254,8 +218,10 @@ async function bridgeTick() {
     }
     if (b.tooOld) return;  // this page may not understand an old plugin: ask for the update first
     if (b.ends === null) {
-      // First contact: review recent finished games without a report (like the folder backfill).
+      // First contact: bring the reports in line with the backup, then review recent finished
+      // games that still have no report.
       b.ends = st.gameEnds;
+      if (canBackup()) await syncReports();
       if (st.logDirOk) await bridgeReview(BACKFILL_GAMES);
     } else if (st.gameEnds > b.ends) {
       b.ends = st.gameEnds;
@@ -274,23 +240,47 @@ async function bridgeTick() {
   }
 }
 
+/** One Power.log from the plugin, as a File for the review worker. */
+async function fetchLog(f) {
+  let blob = null;
+  // The file only grows; a smaller download was cut off on the way, so try again.
+  for (let i = 0; i < 3 && !(blob && blob.size >= f.size); i++) {
+    try {
+      blob = await (await bridgeFetch(`/log?source=${encodeURIComponent(f.source)}`)).blob();
+    } catch {
+      blob = null;
+    }
+  }
+  if (!blob || blob.size < f.size) throw new Error(t('err.bridgeRead', { source: f.source }));
+  return { file: new File([blob], 'Power.log', { lastModified: Date.parse(f.modified) || Date.now() }), source: f.source };
+}
+
 async function bridgeReview(limit) {
   const list = await (await bridgeFetch('/logs')).json();
   const files = [];
-  for (const f of list.slice(-2)) {  // the log before may hold the start of a reconnected game
-    let blob = null;
-    // The file only grows; a smaller download was cut off on the way, so try again.
-    for (let i = 0; i < 3 && !(blob && blob.size >= f.size); i++) {
-      try {
-        blob = await (await bridgeFetch(`/log?source=${encodeURIComponent(f.source)}`)).blob();
-      } catch {
-        blob = null;
-      }
+  // The log before may hold the start of a reconnected game (one more when backfilling).
+  for (const f of list.slice(limit ? -3 : -2)) files.push(await fetchLog(f));
+  if (files.length) review(files, { limit, context: true });
+}
+
+/** "Analyze every backed-up game": each session with the one before it (reconnects). */
+let analyzingAll = false;
+async function analyzeBackups() {
+  if (analyzingAll || !state.bridge || !state.bridge.connected) return;
+  analyzingAll = true;
+  try {
+    const list = await (await bridgeFetch('/logs?all=1')).json();
+    for (let i = 0; i < list.length; i++) {
+      const files = [];
+      for (const f of list.slice(Math.max(0, i - 1), i + 1)) files.push(await fetchLog(f));
+      await review(files, { context: true });
     }
-    if (!blob || blob.size < f.size) throw new Error(t('err.bridgeRead', { source: f.source }));
-    files.push({ file: new File([blob], 'Power.log', { lastModified: Date.parse(f.modified) || Date.now() }), source: f.source });
+  } catch (e) {
+    state.error = { text: e.message };
+    renderStatus();
+  } finally {
+    analyzingAll = false;
   }
-  if (files.length) review(files, { limit });
 }
 
 /** "Connect to HDT plugin" button: look for the plugin on its ports (the user asked for it). */
@@ -370,15 +360,12 @@ function renderStatus() {
     }
   } else if (state.bridge && state.bridge.connected) {
     dot = state.bridge.tooOld ? '' : 'live';
-    text = esc(t('status.bridge') + (state.watcher ? '・' + t('status.watching', { dir: state.dir.name }) : '')
+    text = esc(t('status.bridge')
       + (state.bridge.tooOld ? t('status.bridge.tooOld') : state.bridge.outdated ? t('status.bridge.update') : ''));
-  } else if (state.watcher) {
-    dot = 'live';
-    text = esc(t('status.watching', { dir: state.dir.name }));
   } else if (state.bridge) {
     text = esc(t('status.waitBridge'));
   } else {
-    text = esc(t(state.dir ? 'status.paused' : 'status.noFolder'));
+    text = esc(t('status.noBridge'));
   }
   el.innerHTML = `<span class="dot2 ${dot}"></span>${text}`;
   const err = $('#error');
@@ -387,10 +374,15 @@ function renderStatus() {
   err.textContent = msg;
 }
 
-function pluginHelp(open = false) {
-  return `<details class="plugin"${open ? ' open' : ''}><summary>${esc(t('plugin.summary'))}</summary>`
-    + `<p>${esc(t('plugin.ready'))}<button data-act="connect-bridge">${esc(t('btn.connectBridge'))}</button></p>`
-    + t('plugin.steps', { url: PLUGIN_URL }) + '</details>';
+function pluginHelp() {
+  return `<p>${t('setup.first')}</p>` + t('plugin.steps', { url: PLUGIN_URL })
+    + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.connectBridge'))}</button></div>`;
+}
+
+function backupInfo(b) {
+  if (!b.backupDir) return `<p class="small mute">${esc(t('setup.noBackup'))}</p>`;
+  return `<p class="small mute">${esc(t('setup.backup', { dir: b.backupDir, logs: b.logBackups, reports: b.reports }))}`
+    + (b.restored ? esc(t('setup.restored', { n: b.restored })) : '') + '</p>';
 }
 
 function setupCard() {
@@ -401,39 +393,18 @@ function setupCard() {
     const update = b.tooOld
       ? `<div class="warn err">${esc(t('setup.tooOld', { version: b.version, min: b.min }))}${steps}</div>`
       : b.outdated ? `<div class="warn">${esc(t('setup.outdated', { version: b.version, latest: b.latest }))}${steps}</div>` : '';
-    return `<p>${esc(t('setup.bridgeOn', { version: b.version || '?' }))}</p>${update}${warn}`
-      + `<div class="actions">${fileButton()}<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button>${precisionToggle()}</div>`;
+    return `<p>${esc(t('setup.bridgeOn', { version: b.version || '?' }))}</p>${update}${warn}${backupInfo(b)}`
+      + `<div class="actions"><button class="ghost" data-act="all">${esc(t('btn.analyzeAll'))}</button>`
+      + `<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button>${precisionToggle()}</div>`;
   }
   if (b) {
     return `<p>${esc(t('setup.bridgeMissing', { port: b.port }))}</p>`
-      + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.reconnect'))}</button>${fileButton()}`
-      + `<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button></div>`;
+      + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.reconnect'))}</button>`
+      + `<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button></div>`
+      + `<details class="plugin"><summary>${esc(t('plugin.summary'))}</summary>${t('plugin.steps', { url: PLUGIN_URL })}</details>`;
   }
-  return folderOrBrowserCard() + (state.watcher ? '' : pluginHelp());
+  return pluginHelp();
 }
-
-function folderOrBrowserCard() {
-  if (state.watcher) {
-    return `<div class="actions"><button class="ghost" data-act="all">${esc(t('btn.analyzeAll'))}</button>`
-      + `<button class="ghost" data-act="pick">${esc(t('btn.changeFolder'))}</button>${fileButton()}${precisionToggle()}</div>`;
-  }
-  if (state.dir) {
-    return `<p>${t('setup.lastFolder', { dir: esc(state.dir.name) })}</p>`
-      + `<div class="actions"><button data-act="resume">${esc(t('btn.resume'))}</button>`
-      + `<button class="ghost" data-act="pick">${esc(t('btn.changeFolder'))}</button>${fileButton()}</div>`;
-  }
-  if (!canWatch() && navigator.brave) {
-    return `<p>${t('setup.brave')}</p><div class="actions">${fileButton(true)}</div>`;
-  }
-  if (!canWatch()) {
-    return `<p>${esc(t('setup.noWatch'))}</p><div class="actions">${fileButton(true)}</div>`;
-  }
-  return `<p>${t('setup.first')}</p>`
-    + `<div class="actions"><button data-act="pick">${esc(t('btn.pickFolder'))}</button>${fileButton()}</div>`;
-}
-
-const fileButton = (primary = false) =>
-  `<label class="${primary ? 'btn' : 'btn ghost'}">${esc(t('btn.pickFile'))}<input type="file" accept=".log,.txt" multiple hidden data-act="files"></label>`;
 
 const precisionToggle = () =>
   `<label class="small mute toggle"><input type="checkbox" data-act="quick" ${state.precision === 'quick' ? 'checked' : ''}> ${esc(t('quick'))}</label>`;
@@ -458,9 +429,7 @@ function renderChrome() {
   btn.textContent = t('lang.switch');
   btn.title = t('lang.switch.title');
   $('#help').innerHTML =
-    `<details id="help-blocked" class="card help"><summary>${esc(t('help.blocked.summary'))}</summary>${t('help.blocked.body')}</details>`
-    + `<details class="card help"><summary>${esc(t('help.about.summary'))}</summary>${t('help.about.body')}</details>`;
-  $('.dropzone').textContent = t('drop');
+    `<details class="card help"><summary>${esc(t('help.about.summary'))}</summary>${t('help.about.body')}</details>`;
 }
 
 async function render() {
@@ -490,13 +459,18 @@ document.addEventListener('click', async (ev) => {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   } else if (a.dataset.delete) {
     ev.preventDefault();
-    if (confirm(t('confirm.delete'))) {
+    if (confirm(t(canBackup() ? 'confirm.deleteBackup' : 'confirm.delete'))) {
       await deleteGame(a.dataset.delete);
+      if (canBackup()) {
+        try {
+          await bridgeFetch(`/report?key=${encodeURIComponent(a.dataset.delete)}`, { method: 'DELETE' });
+        } catch (e) {
+          tlog(`delete of ${a.dataset.delete} in the backup failed: ${e.message}`);
+        }
+      }
       location.hash = '#/';
     }
-  } else if (a.dataset.act === 'pick') pickFolder();
-  else if (a.dataset.act === 'resume') resumeFolder();
-  else if (a.dataset.act === 'all') analyzeAll();
+  } else if (a.dataset.act === 'all') analyzeBackups();
   else if (a.dataset.act === 'forget-bridge') forgetBridge();
   else if (a.dataset.act === 'connect-bridge') connectBridge();
   else if (a.dataset.act === 'lang') {
@@ -511,19 +485,10 @@ document.addEventListener('click', async (ev) => {
 
 document.addEventListener('change', async (ev) => {
   const el = ev.target;
-  if (el.dataset.act === 'files') analyzeFiles(el.files);
-  else if (el.dataset.act === 'quick') {
+  if (el.dataset.act === 'quick') {
     state.precision = el.checked ? 'quick' : 'full';
     await setKV('precision', state.precision);
   }
-});
-
-document.addEventListener('dragover', ev => { ev.preventDefault(); document.body.classList.add('drop'); });
-document.addEventListener('dragleave', ev => { if (!ev.relatedTarget) document.body.classList.remove('drop'); });
-document.addEventListener('drop', ev => {
-  ev.preventDefault();
-  document.body.classList.remove('drop');
-  analyzeFiles(ev.dataTransfer.files);
 });
 
 window.addEventListener('hashchange', async () => {
@@ -539,11 +504,6 @@ window.addEventListener('hashchange', async () => {
   await loadNames();
   renderChrome();
   state.precision = (await getKV('precision')) || 'full';
-  const dir = await getKV('dir');
-  if (dir) {
-    state.dir = dir;
-    if (await dir.queryPermission({ mode: 'read' }) === 'granted') await startWatching(dir, true);
-  }
   if (!(await handleBridgeRoute())) {
     const port = await getKV('bridgePort');
     if (BRIDGE_PORTS.includes(port)) await startBridge(port);
