@@ -80,7 +80,7 @@ const STR = {
     'setup.tooOld': '外掛版本太舊（{version}），這個網頁需要 {min} 以上才能自動分析。',
     'setup.outdated': '有新版外掛：{version} → {latest}。',
     'plugin.summary': '怎麼安裝 HDT 外掛',
-    'plugin.steps': '<ol><li>下載 <a href="{url}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li><li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li><li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，再按一次「開啟復盤網頁」。</li><li>瀏覽器問「允許存取本機網路上的裝置」時按允許。</li></ol><p class="small mute">之後每局英雄戰場結束，HDT 會自動打開這局的報告。外掛只在本機 127.0.0.1 提供紀錄檔給這個網站、把紀錄檔和報告備份在「文件\\BG Advisor」，不會上傳任何東西。</p>',
+    'plugin.steps': '<ol><li>下載 <a href="{url}" download>BgAdvisorBridge.dll</a>，在檔案上按右鍵 › 內容，勾選「解除封鎖」後按確定。</li><li>把它放進 <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code>，重新啟動 HDT。</li><li>HDT 的 選項 › 追蹤器 › 外掛 裡啟用「BG Advisor」，再按這個頁面上的「連線 HDT 外掛」。</li><li>瀏覽器問「允許存取本機網路上的裝置」時按允許。</li></ol><p class="small mute">之後每局英雄戰場結束，HDT 會自動打開這局的報告。外掛只在本機 127.0.0.1 提供紀錄檔給這個網站、把紀錄檔和報告備份在「文件\\BG Advisor」，不會上傳任何東西。</p>',
 
     // list
     'list.empty': '還沒有報告。打完一局英雄戰場後會自動出現在這裡。',
@@ -302,7 +302,7 @@ const STR = {
     'setup.tooOld': 'The plugin is too old ({version}); this page needs {min} or newer to analyze games automatically.',
     'setup.outdated': 'A new plugin is available: {version} → {latest}.',
     'plugin.summary': 'How to install the HDT plugin',
-    'plugin.steps': '<ol><li>Download <a href="{url}" download>BgAdvisorBridge.dll</a>, right-click it › Properties, tick "Unblock" and click OK.</li><li>Put it in <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code> and restart HDT.</li><li>In HDT, Options › Tracker › Plugins, enable "BG Advisor", then click its "開啟復盤網頁" (open review page) button.</li><li>Allow "local network" access when the browser asks.</li></ol><p class="small mute">After that, HDT opens the report of every Battlegrounds game when it ends. The plugin only serves the logs to this site on 127.0.0.1 on your own computer and backs up logs and reports in "Documents\\BG Advisor"; it uploads nothing.</p>',
+    'plugin.steps': '<ol><li>Download <a href="{url}" download>BgAdvisorBridge.dll</a>, right-click it › Properties, tick "Unblock" and click OK.</li><li>Put it in <code>%AppData%\\HearthstoneDeckTracker\\Plugins</code> and restart HDT.</li><li>In HDT, Options › Tracker › Plugins, enable "BG Advisor", then click "Connect to HDT plugin" on this page.</li><li>Allow "local network" access when the browser asks.</li></ol><p class="small mute">After that, HDT opens the report of every Battlegrounds game when it ends. The plugin only serves the logs to this site on 127.0.0.1 on your own computer and backs up logs and reports in "Documents\\BG Advisor"; it uploads nothing.</p>',
 
     'list.empty': 'No reports yet. They show up here after you finish a Battlegrounds game.',
     'list.rounds': '{n} rounds',

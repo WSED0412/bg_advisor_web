@@ -25,7 +25,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
 2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「BG Advisor」。
-3. 按外掛的「開啟復盤網頁」，瀏覽器問「存取本機網路上的裝置」時按允許。
+3. 打開 <https://wsed0412.github.io/bg_advisor_web/>，按「連線 HDT 外掛」；瀏覽器問「存取本機網路上的裝置」時按允許。
 
 之後每局英雄戰場結束，HDT 會自動打開這局的報告（網頁開著的話會直接在那個分頁分析）。
 外掛只在 `127.0.0.1` 上提供 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
