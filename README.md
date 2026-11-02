@@ -45,6 +45,14 @@ Chrome、Edge、Brave、Firefox 都能用。
 - 網頁上的「分析備份裡所有對局」會把備份裡還沒有報告的對局全部分析一遍（模擬器或評分更新後，也可以先刪掉報告再重新分析）。
 - 想要異地備份，把 `文件\BG Advisor` 放進 OneDrive 或其他雲端硬碟同步即可。
 
+### 匯入、匯出報告
+
+- 報告列表上方的「匯出全部報告」把所有報告存成一個 JSON 檔；每份報告最下面的「匯出這份報告」只存那一份。
+- 「匯入報告」讀回這種檔案（可以一次選多個），不需要外掛。用來分享給別人、搬到別的瀏覽器都可以。
+- 已經有的報告不會被覆蓋；別人的報告在列表上會標「匯入（玩家名稱）」。有連線外掛的話，匯入的報告也會存進備份。
+- 匯出的報告裡有你的 BattleTag（例如 `名字#1234`），分享前請留意。紀錄檔本身不會被匯出。
+- 匯入的檔案會先檢查格式，並把可能被當成 HTML 的字元換掉，別人給的檔案不能在網頁上執行程式。
+
 ### 外掛更新與編譯
 
 自己編譯：`powershell -ExecutionPolicy Bypass -File plugin\build.ps1 -Install`（需要 Visual Studio Build Tools）。
@@ -123,7 +131,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 | `web/js/powerlog.js`、`bglog.js` | 解析 Power.log、擷取戰鬥陣容與出牌 |
 | `web/js/scene.js`、`simcore.js`、`sim.js` | 重建局面、平行模擬（每個 Web Worker 一份模擬器） |
 | `web/js/scoring.js`、`positioning.js`、`decisions.js`、`luck.js`、`review.js` | 評分、運氣 |
-| `web/js/app.js`、`report.js`、`store.js` | 介面（連線外掛、同步備份）、報告、IndexedDB |
+| `web/js/app.js`、`report.js`、`store.js`、`share.js` | 介面（連線外掛、同步備份）、報告、IndexedDB、匯入匯出 |
 | `plugin/` | HDT 外掛（C#）：本機橋接伺服器，對局結束時打開網頁；備份紀錄檔和報告（`Backup.cs`） |
 
 推上 `main` 後，GitHub Actions 會編譯 WebAssembly 並部署到 GitHub Pages。

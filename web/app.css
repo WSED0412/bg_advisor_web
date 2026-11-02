@@ -25,6 +25,7 @@ pre{background:var(--chip);padding:10px 12px;border-radius:8px;overflow-x:auto;w
 .warn{border-left:4px solid var(--ok);padding:8px 12px;background:var(--card);border-radius:6px;margin:10px 0;font-size:14px}
 .err{border-left-color:var(--bad)}
 .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.listbar{margin:0 0 12px}
 button,.btn{font:inherit;border:1px solid var(--btn);background:var(--btn);color:var(--btn-ink);border-radius:8px;
 padding:7px 14px;cursor:pointer;display:inline-block}
 button.ghost,.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}

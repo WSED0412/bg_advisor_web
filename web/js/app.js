@@ -5,6 +5,7 @@
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
 import { esc, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
+import { downloadReports, readExport, today } from './share.js';
 
 const $ = sel => document.querySelector(sel);
 // Test harness: ?log=...&report=/report also mirrors status and errors to POST /log.
@@ -23,6 +24,7 @@ const state = {
   busy: false,
   progress: null,     // {hero, done, total, round}
   status: null,       // {key, vars}
+  notice: '',         // a message shown in the status line until the next one
   error: null,        // {key, vars} or {text}
   precision: 'full',
 };
@@ -39,6 +41,7 @@ function review(files, { limit = 0, onlyComplete = true, context = false } = {})
   pending = pending.then(() => new Promise(async (resolve) => {
     if (!worker) worker = new Worker(new URL('./review-worker.js', import.meta.url), { type: 'module' });
     state.busy = true;
+    state.notice = '';
     state.error = null;
     renderStatus();
     worker.onmessage = async (ev) => {
@@ -338,6 +341,37 @@ async function handleBridgeRoute() {
   return true;
 }
 
+// ---------------------------------------------------------------- import / export
+
+/** Read report files exported by this page (anyone's): keep the new ones, here and in the backup. */
+async function importFiles(files) {
+  const known = new Set(await gameKeys());
+  let added = 0, had = 0, bad = 0;
+  const badFiles = [];
+  for (const f of files) {
+    let got;
+    try {
+      got = readExport(await f.text());
+    } catch {
+      badFiles.push(f.name);
+      continue;
+    }
+    bad += got.bad;
+    for (const r of got.reports) {
+      if (known.has(r.key)) { had += 1; continue; }  // never overwrite a report already here
+      if (!r.imported) r.imported = new Date().toISOString();
+      await saveGame(r);
+      backupReport(r);
+      known.add(r.key);
+      added += 1;
+    }
+  }
+  state.error = badFiles.length ? { text: t('err.importFile', { names: badFiles.join('、') }) } : null;
+  state.notice = t('notice.imported', { n: added }) + (had ? t('notice.importHad', { n: had }) : '')
+    + (bad ? t('notice.importBad', { n: bad }) : '');
+  await render();
+}
+
 // ---------------------------------------------------------------- rendering
 
 function route() {
@@ -358,6 +392,8 @@ function renderStatus() {
     } else {
       text = esc(state.status ? t(state.status.key, state.status.vars || {}) : t('status.analyzing'));
     }
+  } else if (state.notice) {
+    text = esc(state.notice);
   } else if (state.bridge && state.bridge.connected) {
     dot = state.bridge.tooOld ? '' : 'live';
     text = esc(t('status.bridge')
@@ -416,11 +452,15 @@ async function renderList() {
     const misses = (s.misplays || []).length;
     return `<a class="g" href="#/game/${encodeURIComponent(g.key)}">`
       + `<div class="place ${placeCls(g.place)}">${g.place || '?'}</div>`
-      + `<div><b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: g.rounds.length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}</span>`
+      + `<div><b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: g.rounds.length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}`
+      + `${g.imported ? esc(t('list.imported', { player: g.player || '?' })) : ''}</span>`
       + `<div class="small">${esc(t('list.misses', { n: misses }))}</div></div>`
       + `<div class="right small">${esc(t('list.positioning'))} ${scoreHtml(s.positioning_avg)}　${esc(t('list.decisions'))} ${scoreHtml(s.decisions_avg)}</div></a>`;
   }).join('') : `<p class="mute">${esc(t('list.empty'))}</p>`;
-  return `<section class="card">${setupCard()}</section><div class="games">${list}</div>`;
+  const tools = `<div class="actions listbar">`
+    + (games.length ? `<button class="ghost" data-act="export-all">${esc(t('btn.exportAll'))}</button>` : '')
+    + `<label class="btn ghost">${esc(t('btn.import'))}<input type="file" accept=".json,application/json" multiple hidden data-act="import"></label></div>`;
+  return `<section class="card">${setupCard()}</section>${tools}<div class="games">${list}</div>`;
 }
 
 function renderChrome() {
@@ -437,7 +477,14 @@ async function render() {
   const main = $('#view');
   if (r.page === 'game') {
     const res = await getGame(r.key);
-    main.innerHTML = res ? renderGame(res) : `<p>${t('list.notFound')}</p>`;
+    let html = `<p>${esc(t('list.notFound'))}</p>`;
+    try {
+      if (res) html = renderGame(res);
+    } catch (e) {
+      html = `<p class="warn">${esc(t('err.render', { msg: e.message }))}</p>`
+        + `<p class="small"><a href="#" data-delete="${esc(res.key)}" class="mute">${esc(t('r.delete'))}</a></p>`;
+    }
+    main.innerHTML = html;
     document.title = res
       ? t('title.game', { hero: heroName(res), place: res.place ? t('title.place', { place: res.place }) : '' })
       : t('app.title');
@@ -451,7 +498,7 @@ async function render() {
 // ---------------------------------------------------------------- events
 
 document.addEventListener('click', async (ev) => {
-  const a = ev.target.closest('[data-round],[data-act],[data-delete]');
+  const a = ev.target.closest('[data-round],[data-act],[data-delete],[data-export]');
   if (!a) return;
   if (a.dataset.round) {
     ev.preventDefault();
@@ -470,6 +517,12 @@ document.addEventListener('click', async (ev) => {
       }
       location.hash = '#/';
     }
+  } else if (a.dataset.export) {
+    ev.preventDefault();
+    const res = await getGame(a.dataset.export);
+    if (res) downloadReports([res], `bg_advisor_${res.key}.json`);
+  } else if (a.dataset.act === 'export-all') {
+    downloadReports(await allGames(), `bg_advisor_reports_${today()}.json`);
   } else if (a.dataset.act === 'all') analyzeBackups();
   else if (a.dataset.act === 'forget-bridge') forgetBridge();
   else if (a.dataset.act === 'connect-bridge') connectBridge();
@@ -485,7 +538,10 @@ document.addEventListener('click', async (ev) => {
 
 document.addEventListener('change', async (ev) => {
   const el = ev.target;
-  if (el.dataset.act === 'quick') {
+  if (el.dataset.act === 'import') {
+    await importFiles([...el.files]);
+    el.value = '';
+  } else if (el.dataset.act === 'quick') {
     state.precision = el.checked ? 'quick' : 'full';
     await setKV('precision', state.precision);
   }

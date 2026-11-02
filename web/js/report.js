@@ -135,7 +135,8 @@ function renderGameLegacy(res) {
     + rounds.map(round).join('')
     + `<p class="note">分數：91 以上接近最佳、70–90 還可以更好、70 以下明顯失誤。勝率是和「當回合實際遇到的對手陣容」模擬對戰的結果，`
     + `平手算半場勝；怎麼排都很難贏的回合改用受到的傷害評分。決策是用做決定當下的陣容評估。</p>`
-    + `<p class="small"><a href="#" data-delete="${esc(res.key)}" class="mute">刪除這份報告</a></p>`;
+    + `<p class="small"><a href="#" data-export="${esc(res.key)}" class="mute">匯出這份報告</a>　`
+    + `<a href="#" data-delete="${esc(res.key)}" class="mute">刪除這份報告</a></p>`;
 }
 
 // ---------------------------------------------------------------- format 2 (any language)
@@ -439,5 +440,6 @@ export function renderGame(res) {
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
     + `<p class="note">${esc(t('r.pickFooter'))}</p>`
-    + `<p class="small"><a href="#" data-delete="${esc(res.key)}" class="mute">${esc(t('r.delete'))}</a></p>`;
+    + `<p class="small"><a href="#" data-export="${esc(res.key)}" class="mute">${esc(t('r.export'))}</a>　`
+    + `<a href="#" data-delete="${esc(res.key)}" class="mute">${esc(t('r.delete'))}</a></p>`;
 }
