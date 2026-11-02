@@ -45,13 +45,13 @@ button:hover,.btn:hover{filter:brightness(1.07)}
 .strip a{text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:13px;
 display:flex;gap:6px;align-items:center}
 .dot{width:9px;height:9px;border-radius:50%}
-.board{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
-.m{background:var(--chip);border-radius:8px;padding:5px 8px;min-width:92px;font-size:13px}
-.m .n{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.board{display:grid;grid-template-columns:repeat(7,minmax(84px,1fr));gap:6px;margin:4px 0 8px;overflow-x:auto}
+.m{background:var(--chip);border-radius:8px;padding:5px 8px;min-width:0;font-size:13px}
+.m .n{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .m.gold{box-shadow:inset 0 0 0 2px var(--accent)}
 .m .st{font-variant-numeric:tabular-nums}.m .kw{color:var(--mute);font-size:12px}
 /* The card's art strip on the right, fading into the chip behind the text. */
-.m.art{min-width:150px;background-color:var(--chip);background-repeat:no-repeat;
+.m.art{background-color:var(--chip);background-repeat:no-repeat;
 background-image:linear-gradient(90deg,var(--chip) 38%,transparent 92%),var(--art,none);
 background-position:0 0,right center;background-size:100% 100%,auto 100%}
 .hero-ico{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;
