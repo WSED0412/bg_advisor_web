@@ -153,15 +153,15 @@ export function applySteps(g, steps, settle = true) {
   if (settle) settleOpen(g);
 }
 
-/** Arrange my warband by `final` (eids or card ids); unmatched minions keep their order. */
-export function reorder(state, final) {
-  const board = state.players[ME].board;
+/** Slot order for `final` (eids or card ids) over `board` ([{eid, id}]): order[k] = index of
+ * the minion for slot k; unmatched minions keep their order after the matched ones. */
+export function orderOf(board, final) {
   const rest = board.map((_, i) => i);
   const order = [];
   for (const key of final) {
     for (let k = 0; k < rest.length; k++) {
       const m = board[rest[k]];
-      if (m.eid === key || m._id === key) {
+      if (m.eid === key || m.id === key) {
         order.push(rest[k]);
         rest.splice(k, 1);
         break;
@@ -169,9 +169,7 @@ export function reorder(state, final) {
     }
   }
   order.push(...rest);
-  const players = [...state.players];
-  players[ME] = { ...players[ME], board: order.map(i => board[i]) };
-  return { ...state, players };
+  return order;
 }
 
 export function previewOf(g, n) {
@@ -229,10 +227,13 @@ export function merge(results) {
            avg_damage_by_a: wa ? da / wa : 0, avg_damage_by_b: wb ? db / wb : 0 };
 }
 
-export function runJob(engine, base, baseJson, job, n) {
+/** Run a job. `baseGame()` gives the base state loaded once in `engine` (kept by the caller):
+ * an arrangement is a copy of it made inside the engine, with no JSON in between. */
+export function runJob(engine, base, baseGame, job, n) {
   if (job.order) {
-    const keys = job.order.map(i => base.players[ME].board[i].eid);
-    const g = engine.fromJson(dumpState(reorder(base, keys)));
+    const board = base.players[ME].board;
+    const keys = job.order.map(i => board[i].eid);
+    const g = baseGame().reordered(ME, orderOf(board.map(m => ({ eid: m.eid })), keys));
     try {
       return preview(g, n);
     } finally {
@@ -250,13 +251,10 @@ function runSteps(engine, baseJson, job, n) {
   try {
     applySteps(g, job.steps || []);
     if (job.final && job.final.length) {
-      const st = parseState(g.stateJson());
-      const ids = new Map(meView(g).board.map(m => [m.eid, m.id]));
-      for (const m of st.players[ME].board) m._id = ids.get(m.eid);
-      const st2 = reorder(st, job.final);
-      for (const m of st2.players[ME].board) delete m._id;
+      const order = orderOf(meView(g).board, job.final);
+      const g2 = g.reordered(ME, order);
       g.free();
-      g = engine.fromJson(dumpState(st2));
+      g = g2;
     }
   } catch (e) {
     g.free();

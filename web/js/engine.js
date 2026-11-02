@@ -54,8 +54,11 @@ export class Engine {
   }
 
   _withStr(s, f) {
+    return this._withBytes(enc.encode(s), f);
+  }
+
+  _withBytes(b, f) {
     const x = this.x;
-    const b = enc.encode(s);
     const len = b.length;
     const p = x.tg_alloc(len);
     new Uint8Array(x.memory.buffer, p, len).set(b);
@@ -118,6 +121,14 @@ export class Game {
   step(p, action) { this._str(x => x.tg_step(this.h, p, action)); }
 
   copy() { return new Game(this.e, Number(this._str(x => x.tg_game_copy(this.h)))); }
+
+  /** A copy with seat p's warband rearranged: order[k] = index of the minion for slot k. */
+  reordered(p, order) {
+    const e = this.e;
+    const h = e._call(() => e._withBytes(Uint8Array.from(order),
+      (ptr, n) => e._out(e.x.tg_game_reordered(this.h, p, ptr, n))));
+    return new Game(e, Number(h));
+  }
 
   free() {
     if (this.h !== null && !this.e.broken) this.e.x.tg_game_free(this.h);

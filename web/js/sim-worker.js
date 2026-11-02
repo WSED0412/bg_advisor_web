@@ -38,16 +38,23 @@ self.onmessage = async (ev) => {
   if (msg.type !== 'chunk') return;
   const { baseJson, jobs, n, chunkId } = msg;
   const base = parseState(baseJson);
+  // The base state, loaded once per chunk (and again if a crash replaced the engine).
+  let baseGame = null;
+  const getBase = () => {
+    if (!baseGame || baseGame.e !== engine) baseGame = engine.fromJson(baseJson);
+    return baseGame;
+  };
   const out = [];
   for (const job of jobs) {
     if (engine.broken) await fresh();
     try {
-      out.push([job.id, runJob(engine, base, baseJson, job, n), null]);
+      out.push([job.id, runJob(engine, base, getBase, job, n), null]);
     } catch (e) {
       // Expected failures carry just their message (as in the Python version).
       const known = e instanceof StepError || e instanceof EngineError;
       out.push([job.id, null, known ? e.message : `${e.name}: ${e.message}`]);
     }
   }
+  if (baseGame && baseGame.e === engine) baseGame.free();
   self.postMessage({ type: 'done', chunkId, out });
 };

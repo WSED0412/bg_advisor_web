@@ -140,6 +140,39 @@ pub extern "C" fn tg_game_copy(h: u32) -> u32 {
     done(with_game(h, |g| Ok(g.clone())).map(store))
 }
 
+/// Copy of `g` with seat `p`'s warband in `order` (each index of the current board once).
+fn reordered(g: &Game, p: u32, order: &[u8]) -> Result<Game, String> {
+    let p = check_seat(g, p)?;
+    let n = g.players[p].board.len();
+    if order.len() != n {
+        return Err(format!("order has {} minions, the warband {n}", order.len()));
+    }
+    let mut seen = vec![false; n];
+    for &i in order {
+        let i = i as usize;
+        if i >= n || seen[i] {
+            return Err(format!("bad order {order:?}"));
+        }
+        seen[i] = true;
+    }
+    let mut copy = g.clone();
+    let board = &g.players[p].board;
+    copy.players[p].board = order.iter().map(|&i| board[i as usize].clone()).collect();
+    Ok(copy)
+}
+
+/// Copy of game `h` with seat `p`'s warband rearranged: `order[k]` is the index (in the current
+/// warband) of the minion to put at slot k. Output = handle of the copy. Same game as dumping
+/// the state, moving the minions in the JSON and loading it again, without the JSON.
+///
+/// # Safety
+/// `order..order+len` must be memory JS wrote through `tg_alloc`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn tg_game_reordered(h: u32, p: u32, order: *const u8, len: usize) -> u32 {
+    let order: &[u8] = if len == 0 { &[] } else { unsafe { std::slice::from_raw_parts(order, len) } };
+    done(with_game(h, |g| reordered(g, p, order)).map(store))
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn tg_state_json(h: u32) -> u32 {
     done(with_game(h, |g| serde_json::to_string(g).map_err(|e| e.to_string())))
@@ -193,4 +226,44 @@ pub extern "C" fn tg_catalog() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn tg_version() -> u32 {
     done(Ok(format!("{} ({})", taverngym::VERSION, taverngym::GAME_VERSION)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn game_with_board() -> Game {
+        let mut g = Game::new(7, RulesConfig::default());
+        for card in ["BG_CFM_315", "BG28_300", "BG_CFM_315"] {
+            let cmd = serde_json::json!({"cmd": "add_minion", "p": 0, "zone": "board", "card": card});
+            let cmd: taverngym::debug::DebugCmd = serde_json::from_value(cmd).unwrap();
+            taverngym::debug::run_debug(&mut g, cmd).unwrap();
+        }
+        g
+    }
+
+    #[test]
+    fn reordered_matches_a_json_round_trip() {
+        let g = game_with_board();
+        assert_eq!(g.players[0].board.len(), 3);
+        let copy = reordered(&g, 0, &[2, 0, 1]).unwrap();
+
+        let mut v: serde_json::Value = serde_json::to_value(&g).unwrap();
+        let b = v["players"][0]["board"].as_array().unwrap().clone();
+        v["players"][0]["board"] = serde_json::Value::Array(vec![b[2].clone(), b[0].clone(), b[1].clone()]);
+        let via_json: Game = serde_json::from_value(v).unwrap();
+
+        assert_eq!(serde_json::to_string(&copy).unwrap(), serde_json::to_string(&via_json).unwrap());
+        assert_eq!(serde_json::to_string(&g).unwrap(), serde_json::to_string(&game_with_board()).unwrap(),
+                   "the original is left as it was");
+    }
+
+    #[test]
+    fn reordered_rejects_bad_orders() {
+        let g = game_with_board();
+        for bad in [&[0u8, 1][..], &[0, 1, 1], &[0, 1, 3], &[0, 1, 2, 3]] {
+            assert!(reordered(&g, 0, bad).is_err(), "{bad:?}");
+        }
+        assert!(reordered(&g, 9, &[0, 1, 2]).is_err());
+    }
 }
