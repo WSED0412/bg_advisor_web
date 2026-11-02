@@ -45,6 +45,7 @@ export class PowerLog {
     this._accountHi = new Map();
     this._nameCache = new Map();
     this.lastName = new Map();        // entity id -> latest display name used
+    this.refByName = false;           // the entity just referenced was named, not numbered
     this._tagHandlers = [];
     this._blockHandlers = [];
     this._choiceHandlers = [];
@@ -109,6 +110,7 @@ export class PowerLog {
 
   _ref(text) {
     text = text.trim();
+    this.refByName = false;
     const m = ENT_BRACKET.exec(text);
     if (m) {
       let id = null;  // the last id= wins, as with a dict of all pairs
@@ -119,7 +121,9 @@ export class PowerLog {
     }
     if (isDigits(text)) return parseInt(text, 10);
     if (text === 'GameEntity') return this.gameEntity;
-    return this.playerByName(text);
+    const eid = this.playerByName(text);
+    this.refByName = eid !== null;
+    return eid;
   }
 
   _set(e, tag, value, notify) {

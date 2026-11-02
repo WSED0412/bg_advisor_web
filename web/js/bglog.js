@@ -76,6 +76,9 @@ class Reader {
     this.g = game;
     this.pending = null;  // [combat, my life, opp life]
     this.oppHero = 0;
+    this.myName = [0, ''];       // [my player id, my name]
+    this.seen = [];              // [player id, name] pairs met in combat
+    this.lastLearned = ['', 0];  // [name, player id] last paired
     this.openPlay = null;
     this.seq = 0;
     this.run = 0;
@@ -163,6 +166,10 @@ class Reader {
   }
 
   _tag(log, e, tag, old, nw) {
+    if (tag === 'HERO_ENTITY' && log.refByName && /^\d+$/.test(nw) && e.id !== log.localPlayer) {
+      this.learnName(log.lastName.get(e.id) || '', parseInt(nw, 10));
+      return;
+    }
     if (tag === 'COPIED_FROM_ENTITY_ID') {
       // Each round's copy of a minion links back to the previous one.
       if (/^\d+$/.test(nw)) {
@@ -184,7 +191,7 @@ class Reader {
       const [me, opp] = ps;
       // The dummy player carries the current opponent's name in combat.
       const combat = { round: Math.floor(this.turn / 2), me: this.side(me, this.g.player),
-                       opp: this.side(opp, log.lastName.get(opp.id) || ''), winner: '', damage: 0 };
+                       opp: this.side(opp, this.oppName(opp)), winner: '', damage: 0 };
       this.g.combats.push(combat);
       this.oppHero = this.boardHero(opp.get('HERO_ENTITY'));
       this.pending = [combat, this.heroLife(me), this.life(this.oppHero)];
@@ -197,9 +204,50 @@ class Reader {
   }
 
   /** Every player's life and place now, from the leaderboard heroes. */
-  standing(rnd) {
+  /** The dummy player, named after this combat's opponent, takes that opponent's hero. The log
+   * may still use the previous opponent's name then: a name is trusted when it is new (it differs
+   * from the last one paired), or when it comes back with the same player. A ghost
+   * (Kel'Thuzad...) is not the player's own hero: no player id then. */
+  learnName(name, hero) {
+    const card = baseId(this.log.entity(hero).cardId);
+    if (!name || !card || card === BOB) return;
+    const board = this.log.entity(this.boardHero(hero));
+    let pid = board.get('PLAYER_ID');
+    if (!(pid && baseId(board.cardId) === card && board.get('PLAYER_LEADERBOARD_PLACE'))) pid = 0;
+    const [lastName, lastPid] = this.lastLearned;
+    if (name === lastName && pid !== lastPid) return;  // the previous opponent's name, not yet replaced
+    this.lastLearned = [name, pid];
+    if (pid && !this.seen.some(([p, n]) => p === pid && n === name)) this.seen.push([pid, name]);
+  }
+
+  /** A player's name, only when the log never paired it otherwise: one name for this player, and
+   * that name for no one else (the dummy player's name is not reliable). */
+  nameOf(pid) {
+    if (pid === this.myName[0]) return this.myName[1];
+    const mine = new Set(this.seen.filter(([p]) => p === pid).map(([, n]) => n));
+    if (mine.size !== 1) return '';
+    const [name] = mine;
+    return this.seen.every(([p, n]) => n !== name || p === pid) ? name : '';
+  }
+
+  /** This combat's opponent's name, when known for sure; else the dummy player's latest name
+   * (which may still be the previous opponent's). */
+  oppName(opp) {
+    const hero = opp.get('HERO_ENTITY');
+    const board = this.log.entity(this.boardHero(hero));
+    if (board.get('PLAYER_LEADERBOARD_PLACE') && baseId(board.cardId) === baseId(this.log.entity(hero).cardId)) {
+      const name = this.nameOf(board.get('PLAYER_ID'));
+      if (name) return name;
+    }
+    return this.log.lastName.get(opp.id) || '';
+  }
+
+  /** Every player's life and place now. Names are known only for me and the players I have fought. */
+  standing(combat) {
+    const rnd = combat.round;
     const me = this.log.localPlayer;
     const myPid = me != null ? this.log.entity(this.log.entity(me).get('HERO_ENTITY')).get('PLAYER_ID') : 0;
+    if (myPid && combat.me.name) this.myName = [myPid, combat.me.name];
     const heroes = new Map();
     for (const e of this.log.entities.values()) {
       const pid = e.get('PLAYER_ID');
@@ -211,7 +259,7 @@ class Reader {
     const players = [...heroes.keys()].sort((a, b) => a - b).map(pid => {
       const e = heroes.get(pid);
       return { pid, hero: baseId(e.cardId), life: this.life(e.id),
-               place: e.get('PLAYER_LEADERBOARD_PLACE'), me: pid === myPid };
+               place: e.get('PLAYER_LEADERBOARD_PLACE'), me: pid === myPid, player: this.nameOf(pid) };
     });
     this.g.standings = this.g.standings.filter(x => x.round !== rnd);
     this.g.standings.push({ round: rnd, players });
@@ -220,7 +268,7 @@ class Reader {
   finishCombat() {
     const [combat, myLife, oppLife] = this.pending;
     this.pending = null;
-    this.standing(combat.round);
+    this.standing(combat);
     const ps = this.players();
     if (!ps) return;
     const [me] = ps;
@@ -269,7 +317,7 @@ class Reader {
     if (!ps) return;
     const [me, opp] = ps;
     if (this.log.entity(opp.get('HERO_ENTITY')).cardId === BOB) return;  // not placed yet
-    const side = this.side(opp, this.log.lastName.get(opp.id) || combat.opp.name);
+    const side = this.side(opp, this.oppName(opp) || combat.opp.name);
     if (side.board.length || !combat.opp.board.length) {
       combat.opp = side;
       this.oppHero = this.boardHero(opp.get('HERO_ENTITY'));
