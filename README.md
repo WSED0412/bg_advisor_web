@@ -1,4 +1,4 @@
-# 英雄戰場復盤（網頁版）
+# 英雄戰場復盤 Battleground Advisor（網頁版）
 
 **網址：<https://wsed0412.github.io/bg_advisor_web/>**
 
@@ -24,8 +24,8 @@
 Chrome、Edge、Brave、Firefox 都能用。
 
 1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
-2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「BG Advisor」。
-3. 在外掛清單選 BG Advisor，按「開啟復盤網頁 Open review page」（第一次一定要從 HDT 開啟，網頁才會拿到外掛的連線密碼）；
+2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「Battleground Advisor」。
+3. 在外掛清單選 Battleground Advisor，按「開啟復盤網頁 Open review page」（第一次一定要從 HDT 開啟，網頁才會拿到外掛的連線密碼）；
    瀏覽器問「存取本機網路上的裝置」時按允許。之後也可以直接打開 <https://wsed0412.github.io/bg_advisor_web/> 按「連線 HDT 外掛」。
 
 之後每局英雄戰場結束，HDT 會自動打開這局的報告（網頁開著的話會直接在那個分頁分析）。
@@ -88,7 +88,7 @@ Chrome、Edge、Brave、Firefox 都能用。
   所以本機其他程式開的網頁（任何埠的 localhost）就算來源被允許，也讀不到紀錄檔、改不了備份。
 - 另外仍然只接受 `Host` 是 `127.0.0.1` 或 `localhost` 的請求（防 DNS rebinding），瀏覽器裡也只有這個網站和本機網頁能讀取回應，
   其他網站的請求直接拒絕。
-- **換密碼**：HDT 的外掛選單有「BG Advisor：重設網頁連線 Reset web connection」，會產生新的 token 並用新網址打開網頁；
+- **換密碼**：HDT 的外掛選單有「Battleground Advisor：重設網頁連線 Reset web connection」，會產生新的 token 並用新網址打開網頁；
   舊的網頁之後會被拒絕，需要從 HDT 重新開啟。也可以刪掉 `BgAdvisorToken.txt` 再重開 HDT。
 - **限制**：token 也會留在瀏覽器的網站資料和瀏覽紀錄（網址的 # 部分）裡；能讀到這些的本機程式本來就能直接讀紀錄檔。
   網站的網址 `wsed0412.github.io` 和同一個 GitHub 帳號的其他 GitHub Pages 網站共用同一個來源，那些網站的程式也能讀到這個網站存的 token。
@@ -227,5 +227,5 @@ python tools/test_server.py --port 8790     # http://127.0.0.1:8790/
 
 評分邏輯移植自 Python 版 bg_advisor，兩者用同一個模擬器和同一組隨機種子，結果一致。
 
-Hearthstone 與卡片資料為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。
+Hearthstone 與卡片資料、卡圖為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。報告裡的卡圖取自 [HearthstoneJSON](https://hearthstonejson.com/)，放在網站的 `web/art/`（`python tools/gen_art.py` 更新），瀏覽時不會連到其他網站。
 本專案以 MIT 授權發布（見 [LICENSE](LICENSE)）；TavernGym 也是 MIT 授權。

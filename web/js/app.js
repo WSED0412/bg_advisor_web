@@ -3,7 +3,7 @@
 // backup of the logs and of every report (Documents\BG Advisor).
 
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
-import { esc, heroName, placeCls, renderGame, scoreHtml } from './report.js';
+import { esc, heroIcon, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
 import { anonymize, downloadReports, readExport, today } from './share.js';
 
@@ -514,7 +514,7 @@ async function renderList() {
     const misses = (s.misplays || []).length;
     return `<a class="g" href="#/game/${encodeURIComponent(g.key)}">`
       + `<div class="place ${placeCls(g.place)}">${g.place || '?'}</div>`
-      + `<div><b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: g.rounds.length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}`
+      + `<div>${g.format >= 2 ? heroIcon(g.hero) : ''}<b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: g.rounds.length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}`
       + `${g.imported ? esc(t('list.imported', { player: g.player || '?' })) : ''}</span>`
       + `<div class="small">${esc(t('list.misses', { n: misses }))}</div></div>`
       + `<div class="right small">${esc(t('list.positioning'))} ${scoreHtml(s.positioning_avg)}　${esc(t('list.decisions'))} ${scoreHtml(s.decisions_avg)}</div></a>`;

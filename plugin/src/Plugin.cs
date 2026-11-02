@@ -31,7 +31,7 @@ namespace BgAdvisorBridge
         bool _battlegrounds;
         MenuItem _menu;
 
-        public string Name { get { return "BG Advisor（英雄戰場復盤）"; } }
+        public string Name { get { return "Battleground Advisor（英雄戰場復盤）"; } }
         public string Description
         {
             get
@@ -51,7 +51,7 @@ namespace BgAdvisorBridge
             {
                 if (_menu == null)
                 {
-                    _menu = new MenuItem { Header = "BG Advisor：重設網頁連線 Reset web connection" };
+                    _menu = new MenuItem { Header = "Battleground Advisor：重設網頁連線 Reset web connection" };
                     _menu.Click += (sender, e) => ResetToken();
                 }
                 return _menu;

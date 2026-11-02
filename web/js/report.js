@@ -10,6 +10,23 @@ const KW_ZH = { TAUNT: '嘲諷', DIVINE_SHIELD: '聖盾', REBORN: '復生', POIS
 const RESULT_ZH = { me: '勝', opp: '敗', tie: '和' };
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Card art (tools/gen_art.py, from HearthstoneJSON): web/art/tiles/<id>.webp, a strip behind a
+// minion's name; web/art/heroes/<id>.webp, a hero's portrait. A golden card uses its normal
+// card's art. Ids from imported reports go into a URL, so only plain ids are used; a missing
+// file just leaves the text as it was.
+const ART = new URL('../art/', import.meta.url).href;
+const artId = id => {
+  const a = String(id || '').replace(/_G$/, '');
+  return /^[A-Za-z0-9_]{1,80}$/.test(a) ? a : '';
+};
+const tileAttr = id => (artId(id) ? ` style="--art:url('${ART}tiles/${artId(id)}.webp')"` : '');
+
+/** A hero's round portrait, or nothing (also when the file is missing). */
+export function heroIcon(id, big = false) {
+  const a = artId(id);
+  return a ? `<img class="hero-ico${big ? ' big' : ''}" src="${ART}heroes/${a}.webp" alt="" loading="lazy" onerror="this.remove()">` : '';
+}
 const pct = x => `${Math.round(x * 100)}%`;
 const signed = x => (x >= 0 ? '+' : '') + x.toFixed(1);
 
@@ -30,7 +47,7 @@ function board(ms) {
   if (!ms || !ms.length) return '<div class="note">（沒有隨從）</div>';
   return `<div class="board">${ms.map(m => {
     const kws = m.keywords.map(k => KW_ZH[k] || k).join('・');
-    return `<div class="m${m.golden ? ' gold' : ''}" title="${esc(m.card)}"><span class="n">${esc(m.name)}</span>`
+    return `<div class="m art${m.golden ? ' gold' : ''}" title="${esc(m.card)}"${tileAttr(m.card)}><span class="n">${esc(m.name)}</span>`
       + `<span class="st">${m.atk}/${m.hp}</span>${kws ? ` <span class="kw">${esc(kws)}</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -151,7 +168,7 @@ function board2(ms) {
   if (!ms || !ms.length) return `<div class="note">${esc(t('r.noMinions'))}</div>`;
   return `<div class="board">${ms.map(m => {
     const kws = m.keywords.map(k => t(`r.kw.${k}`)).join('・');
-    return `<div class="m${m.golden ? ' gold' : ''}" title="${esc(m.card)}"><span class="n">${esc(card(m.card))}</span>`
+    return `<div class="m art${m.golden ? ' gold' : ''}" title="${esc(m.card)}"${tileAttr(m.card)}><span class="n">${esc(card(m.card))}</span>`
       + `<span class="st">${m.atk}/${m.hp}</span>${kws ? ` <span class="kw">${esc(kws)}</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -254,7 +271,7 @@ function round2(r) {
   const name = r.ghost ? t('r.ghost') : r.opponent;
   return `<section class="card" id="r${r.round}">`
     + `<div class="top"><h2>${esc(t('r.round', { round: r.round }))} <span class="pill r-${r.result}">${esc(t(`r.result.${r.result}`))}</span></h2>`
-    + `<span class="mute">${esc(t('r.vs', { name, hero: card(r.opp_hero), tier: r.opp_tier ?? '?', dmg }))}</span></div>${ch}${changed}`
+    + `<span class="mute">${heroIcon(r.opp_hero)}${esc(t('r.vs', { name, hero: card(r.opp_hero), tier: r.opp_tier ?? '?', dmg }))}</span></div>${ch}${changed}`
     + `<div class="small mute" style="margin-top:8px">${esc(t('r.oppBoard'))}</div>${board2(r.opp_board)}`
     + `<div class="small mute">${esc(t('r.myBoard', { tier: r.my_tier ?? '?', hp: r.my_health ?? '?' }))}</div>${board2(r.my_board)}`
     + `${positioning2(r)}${decs}${skipped}${notes2(r.notes)}</section>`;
@@ -469,7 +486,7 @@ export function renderGame(res) {
     + tile(t('r.tile.miss'), misses.length, t('r.tile.miss.sub'))
     + tile(t('r.tile.rounds'), rounds.filter(r => 'result' in r).length, t('r.tile.rounds.sub'));
   return `<a href="#/" class="small mute">${esc(t('r.back'))}</a>`
-    + `<section class="card"><div class="top"><div><h1>${esc(heroName(res))}</h1>`
+    + `<section class="card"><div class="top"><div><h1>${res.format >= 2 ? heroIcon(res.hero, true) : ''}${esc(heroName(res))}</h1>`
     + `<div class="mute small">${esc(res.date)}・${esc(res.player)}・${esc(t('r.client', { build: res.build }))}</div></div>`
     + `<div class="place ${placeCls(place)}">${esc(place ? t('r.place', { place }) : t('r.placeUnknown'))}</div></div>`
     + `<div class="tiles">${tiles}</div><div class="strip">${strip}</div>`
@@ -477,6 +494,7 @@ export function renderGame(res) {
     + rounds.map(round2).join('')
     + `<p class="note">${esc(t('r.footer'))}</p>`
     + `<p class="note">${esc(t('r.pickFooter'))}</p>`
+    + `<details class="card help scoring"><summary>${esc(t('r.scoring.summary'))}</summary>${t('r.scoring.body')}</details>`
     + `<p class="small"><a href="#" data-export="${esc(res.key)}" class="mute">${esc(t('r.export'))}</a>　`
     + `<a href="#" data-delete="${esc(res.key)}" class="mute">${esc(t('r.delete'))}</a></p>`;
 }

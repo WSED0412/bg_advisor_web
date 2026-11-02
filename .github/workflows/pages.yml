@@ -43,10 +43,16 @@ jobs:
           echo "version.json: $want"; echo "DLL:          $got"
           test "$want" = "$got"
 
-      # A syntax error in any module leaves the whole page blank: check them all first.
+      # A syntax error in any module leaves the whole page blank: check them all first. Each file
+      # is checked as a module (.mjs): on a plain .js file, newer Node guesses the module type and
+      # `node --check` let a syntax error through.
       - name: Check the JavaScript and run its tests
         run: |
-          for f in web/js/*.js; do node --check "$f"; done
+          mkdir -p "$RUNNER_TEMP/esm"
+          for f in web/js/*.js; do
+            cp "$f" "$RUNNER_TEMP/esm/$(basename "$f" .js).mjs"
+            node --check "$RUNNER_TEMP/esm/$(basename "$f" .js).mjs" || { echo "::error file=$f::syntax error"; exit 1; }
+          done
           node --test tests/*.test.mjs
 
       # engine/.cargo/config.toml builds for wasm32 by default; tests run on the host.
