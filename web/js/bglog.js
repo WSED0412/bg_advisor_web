@@ -44,6 +44,7 @@ const STAT_TAGS = [
   ['2827', 'gem_hp'], ['BACON_BLOODGEMBUFFHEALTHVALUE', 'gem_hp'],
   ['2878', 'elementals_played'], ['BACON_ELEMENTAL_PLAY_COUNTER', 'elementals_played'],
   ['NUM_SPELLS_PLAYED_THIS_GAME', 'spells_cast'],
+  ['3874', 'beetle_atk'], ['3924', 'beetle_hp'],                            // Beetles' extra stats this game
 ];
 const LOBBY_SIZE = 5;
 
