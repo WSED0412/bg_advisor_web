@@ -5,7 +5,8 @@
 // also starts with CREATE_GAME and a full dump of the current state.
 
 const PREFIX = /^D [\d:.]+ GameState\.DebugPrint(Power|Game|EntityChoices|EntitiesChosen)\(\) - (.*)$/;
-const ENT_BRACKET = /^\[([^\]]*)\]/;
+// One level of brackets may sit inside: "[entityName=Undead Bonus Attack Player Enchant [DNT] id=12 ...]".
+const ENT_BRACKET = /^\[((?:[^[\]]|\[[^[\]]*\])*)\]/;
 const KV = /(\w+)=((?:(?! \w+=).)*)/g;
 const RE_TAG = /^tag=(\S+) value=(.*)$/;
 const RE_TAG_CHANGE = /^TAG_CHANGE Entity=(.*) tag=(\S+) value=(\S+)/;

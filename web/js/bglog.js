@@ -47,6 +47,10 @@ const STAT_TAGS = [
   ['3874', 'beetle_atk'], ['3924', 'beetle_hp'],                            // Beetles' extra stats this game
   ['4468', 'volumizer_atk'], ['4469', 'volumizer_hp'],                      // Volumizers' extra stats this game
 ];
+// "This game" numbers kept in an enchantment on the player (TAG_SCRIPT_DATA_NUM_1), not a tag.
+const ENCHANT_STATS = {
+  BG25_011pe: 'undead_atk',  // Undead Bonus Attack Player Enchant: Deathswarmer +1, Plaguerunner +2...
+};
 const LOBBY_SIZE = 5;
 
 /** The lobby's minion types, from the pool minions seen in the game (most cards first). */
@@ -139,6 +143,13 @@ class Reader {
     for (const [tag, k] of STAT_TAGS) {
       const v = player.get(tag);
       if (v) stats[k] = v;
+    }
+    for (const e of inPlay) {
+      const k = ENCHANT_STATS[e.cardId];
+      if (k && e.get('ATTACHED') === player.id) {
+        const v = e.get('TAG_SCRIPT_DATA_NUM_1');
+        if (v) stats[k] = v;
+      }
     }
     return { name, hero: baseId(hero.cardId), heroPower: power ? baseId(power.cardId) : '',
              health: hero.get('HEALTH') - hero.get('DAMAGE'), armor: hero.get('ARMOR'), tier, trinkets, board,
