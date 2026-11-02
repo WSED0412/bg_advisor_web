@@ -45,6 +45,7 @@ const STAT_TAGS = [
   ['2878', 'elementals_played'], ['BACON_ELEMENTAL_PLAY_COUNTER', 'elementals_played'],
   ['NUM_SPELLS_PLAYED_THIS_GAME', 'spells_cast'],
   ['3874', 'beetle_atk'], ['3924', 'beetle_hp'],                            // Beetles' extra stats this game
+  ['4468', 'volumizer_atk'], ['4469', 'volumizer_hp'],                      // Volumizers' extra stats this game
 ];
 const LOBBY_SIZE = 5;
 
