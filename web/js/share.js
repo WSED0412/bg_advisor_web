@@ -53,13 +53,16 @@ export function readExport(text) {
 const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Copy of a value with every string's whole-word occurrences of `names` replaced by `to`: a
- * name counts only when no letter, digit or _ touches it ("Ed vs Bob", "Ed#1234"), so a short
- * name never eats into other words ("Edwin", "Shred").
+ * Copy of a value with every string's occurrences of `names` replaced by `to`. A name counts
+ * only when no ASCII letter, digit or _ touches it: "Ed vs Bob" and "Ed#1234" are replaced, but
+ * a short name never eats into a Latin word ("Edwin", "Shred"). Chinese, Japanese or Korean text
+ * has no spaces between words, so there a name is replaced wherever it appears ("對戰小明獲勝").
+ * Trade-offs: a name that is a whole English word ("Wolf") is also replaced where that word
+ * stands alone in other text (a minion's name), and a CJK name inside a longer CJK word too.
  */
 function replaceNames(v, names, to) {
   if (!names.length) return v;
-  const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${names.map(reEscape).join('|')})(?![\\p{L}\\p{N}_])`, 'gu');
+  const re = new RegExp(`(?<![A-Za-z0-9_])(?:${names.map(reEscape).join('|')})(?![A-Za-z0-9_])`, 'g');
   const walk = x => {
     if (typeof x === 'string') return x.replace(re, to);
     if (Array.isArray(x)) return x.map(walk);

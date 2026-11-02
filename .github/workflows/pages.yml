@@ -3,15 +3,17 @@ name: Build and deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+# Write access only where the deploy needs it (the deploy job below).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
+# Per event and branch: a pull request's checks never cancel a deploy of main.
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,9 +46,11 @@ jobs:
         working-directory: engine
         run: cargo test --target x86_64-unknown-linux-gnu
 
-      - name: Clippy
+      - name: Clippy (the wasm build, and the tests on the host)
         working-directory: engine
-        run: cargo clippy --release -- -D warnings
+        run: |
+          cargo clippy --release -- -D warnings
+          cargo clippy --tests --target x86_64-unknown-linux-gnu -- -D warnings
 
       - name: Build TavernGym for WebAssembly
         working-directory: engine
@@ -60,11 +64,17 @@ jobs:
           ls -la web web/engine
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: web
 
+  # Pull requests only run the checks above; main (push or a manual run) is deployed.
   deploy:
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
     runs-on: ubuntu-latest
     environment:
       name: github-pages

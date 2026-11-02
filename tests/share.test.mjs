@@ -20,6 +20,14 @@ test('anonymize leaves other words that contain the name alone', () => {
   assert.equal(anonymize(r).rounds[0].text, 'Edwin VanCleef, Shredder; Player played (Player)');
 });
 
+test('anonymize replaces a CJK name right next to other CJK characters', () => {
+  const r = { key: 'k_1234', player: '小明#1234',
+              rounds: [{ round: 1, text: '對戰小明獲勝', vs: '小明 vs Edwin' }] };
+  const a = anonymize(r);
+  assert.equal(a.rounds[0].text, '對戰Player獲勝');
+  assert.equal(a.rounds[0].vs, 'Player vs Edwin');
+});
+
 test('anonymize handles names with regex characters and non-Latin names', () => {
   const r = { key: 'k', player: '小明.+#5678', rounds: [{ round: 1, text: '小明.+ 對上 小明X' }] };
   assert.equal(anonymize(r).rounds[0].text, 'Player 對上 小明X');
