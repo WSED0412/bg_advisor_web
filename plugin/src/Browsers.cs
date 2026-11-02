@@ -1,4 +1,5 @@
-// Opening the web page in the browser the player actually uses.
+// Opening the web page: in Windows' default browser, or, only if that fails, in the browser the
+// page last ran in.
 //
 // The page tells the bridge which browser it runs in (a name from a fixed list). The executable
 // is looked up in the Windows registry (StartMenuInternet, App Paths) - never taken from the
@@ -59,17 +60,21 @@ namespace BgAdvisorBridge
             return null;
         }
 
-        /// <summary>Open url in the given browser; the default browser if it cannot be found.</summary>
+        /// <summary>Open url in Windows' default browser; in the given one only if that fails.</summary>
         public static string Open(string id, string url)
         {
-            var path = Find(id);
-            if (path != null)
+            try
             {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                return "default";
+            }
+            catch (Exception)
+            {
+                var path = Find(id);
+                if (path == null) throw;
                 Process.Start(new ProcessStartInfo(path, "\"" + url + "\"") { UseShellExecute = false });
                 return id;
             }
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            return "default";
         }
 
         static bool Matches(string path, string exe)

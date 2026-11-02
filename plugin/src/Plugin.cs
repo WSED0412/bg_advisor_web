@@ -1,8 +1,9 @@
 // HDT plugin: when a Battlegrounds game ends, let the bg_advisor web page review it.
 //
 // The plugin runs BridgeServer (127.0.0.1 only). An open report page notices the finished game
-// by itself; if no page has asked the bridge for a while, the plugin opens the site - in the
-// browser the page last ran in (remembered in %AppData%\HearthstoneDeckTracker\BgAdvisor.txt).
+// by itself; if no page has asked the bridge for a while, the plugin opens the site - in Windows'
+// default browser (or, if that fails, the browser the page last ran in, remembered in
+// %AppData%\HearthstoneDeckTracker\BgAdvisor.txt).
 // Every Power.log with a Battlegrounds game, and every report the page makes, is also kept in
 // Documents\BG Advisor (Backup.cs).
 //

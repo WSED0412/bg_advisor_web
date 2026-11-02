@@ -61,12 +61,12 @@ Chrome、Edge、Brave、Firefox 都能用。
 **外掛讀取的檔案**
 - 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的
   `Hearthstone_*\Power.log` 和 `Power.log`。網頁只能讀到這份清單裡的檔案，讀不到電腦上的其他檔案。
-- Windows 登錄檔裡瀏覽器的安裝路徑，用來在對局結束後用你常用的瀏覽器打開報告。
+- Windows 登錄檔裡瀏覽器的安裝路徑：對局結束後外掛用 Windows 的預設瀏覽器打開報告，只有預設瀏覽器打不開時，才改用網頁上次所在的瀏覽器。
 
 **外掛寫入的檔案**
 - `文件\BG Advisor\logs\<工作階段>.Power.log.gz`：只備份含有英雄戰場對局的紀錄檔。
 - `文件\BG Advisor\reports\<key>.json`：網頁產生的報告；在網頁上刪除的報告會移到 `reports\deleted`，不會真的刪掉。
-- `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄上次用的是哪個瀏覽器。
+- `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄網頁上次在哪個瀏覽器（預設瀏覽器打不開時才用）。
 - `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`：外掛的連線密碼（token，見下方）。
 
 **網路**
@@ -109,10 +109,11 @@ Chrome、Edge、Brave、Firefox 都能用。
 As of the current code (plugin 0.4.0):
 
 - **Read by the plugin**: `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (only files in
-  that listing can be served), and browser install paths in the Windows registry (to open the report in your browser).
+  that listing can be served), and browser install paths in the Windows registry (reports open in Windows' default browser; only if that fails,
+  in the browser the page last ran in).
 - **Written by the plugin**: `Documents\BG Advisor\logs\<session>.Power.log.gz` (only sessions with a Battlegrounds
   game), `Documents\BG Advisor\reports\<key>.json` (reports from the page; deleted ones move to `reports\deleted`),
-  `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser last used) and
+  `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser the page last ran in) and
   `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt` (the plugin's token, below).
 - **Network**: the plugin listens on `127.0.0.1` ports 47613-47617 only and connects to nothing. The page downloads
   only its own files from GitHub Pages and reads logs from the local plugin. No analytics, ads or third-party code;

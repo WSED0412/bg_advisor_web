@@ -42,7 +42,7 @@ namespace BgAdvisorBridge
         public const string SiteUrl = "https://wsed0412.github.io/bg_advisor_web/";
         public const int FirstPort = 47613;
         public const int LastPort = 47617;
-        public const string Version = "0.4.0";
+        public const string Version = "0.4.1";
         const int RecentSessions = 3;
 
         const int MaxReportBytes = 32 * 1024 * 1024;
