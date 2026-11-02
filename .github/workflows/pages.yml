@@ -37,7 +37,7 @@ jobs:
       - name: Check the JavaScript and run its tests
         run: |
           for f in web/js/*.js; do node --check "$f"; done
-          node --test tests/
+          node --test tests/*.test.mjs
 
       # engine/.cargo/config.toml builds for wasm32 by default; tests run on the host.
       - name: Test the engine bindings
