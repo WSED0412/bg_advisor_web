@@ -104,6 +104,22 @@ class Reader {
     return h.get('HEALTH') - h.get('DAMAGE') + h.get('ARMOR');
   }
 
+  /**
+   * The leaderboard hero of the same player as this combat hero. The opponent's hero in combat
+   * is a copy: once the combat ends it is removed and its damage reset, while the leaderboard
+   * hero keeps each of the eight players' life.
+   */
+  boardHero(hero) {
+    const pid = this.log.entity(hero).get('PLAYER_ID');
+    if (!pid) return hero;
+    let best = 0;
+    for (const e of this.log.entities.values()) {
+      if (e.cardtype === 'HERO' && e.get('PLAYER_ID') === pid && e.get('PLAYER_LEADERBOARD_PLACE')
+          && (e.zone === 'SETASIDE' || e.zone === 'PLAY') && (!best || e.id < best)) best = e.id;
+    }
+    return best || hero;
+  }
+
   side(player, name) {
     const ctl = player.controller;
     const hero = this.log.entity(player.get('HERO_ENTITY'));
@@ -157,8 +173,8 @@ class Reader {
       const combat = { round: Math.floor(this.turn / 2), me: this.side(me, this.g.player),
                        opp: this.side(opp, log.lastName.get(opp.id) || ''), winner: '', damage: 0 };
       this.g.combats.push(combat);
-      this.pending = [combat, this.heroLife(me), this.heroLife(opp)];
-      this.oppHero = opp.get('HERO_ENTITY');
+      this.oppHero = this.boardHero(opp.get('HERO_ENTITY'));
+      this.pending = [combat, this.heroLife(me), this.life(this.oppHero)];
       this.snapOpen = true;
     } else if (tag === 'TURN') {
       this.snapOpen = false;
@@ -174,11 +190,11 @@ class Reader {
     if (!ps) return;
     const [me] = ps;
     const lost = myLife - this.heroLife(me);
-    // The opponent's hero of this combat: by now (the next turn) the other player is Bob,
-    // so it is looked up by the entity kept when the combat began.
+    // The opponent's leaderboard hero, kept when the combat began (by now, the next turn, the
+    // other player is Bob).
     const dealt = oppLife - this.life(this.oppHero || 0);
     if (lost > 0) { combat.winner = 'opp'; combat.damage = lost; }
-    else if (me.get('BACON_WON_LAST_COMBAT')) { combat.winner = 'me'; combat.damage = Math.max(0, dealt); }  // 0: unknown
+    else if (me.get('BACON_WON_LAST_COMBAT')) { combat.winner = 'me'; combat.damage = Math.max(0, dealt); }
     else combat.winner = 'tie';
   }
 
@@ -221,8 +237,8 @@ class Reader {
     const side = this.side(opp, this.log.lastName.get(opp.id) || combat.opp.name);
     if (side.board.length || !combat.opp.board.length) {
       combat.opp = side;
-      oppLife = this.heroLife(opp);
-      this.oppHero = opp.get('HERO_ENTITY');
+      this.oppHero = this.boardHero(opp.get('HERO_ENTITY'));
+      oppLife = this.life(this.oppHero);
     }
     if (!combat.me.board.length) {
       combat.me = this.side(me, combat.me.name);
