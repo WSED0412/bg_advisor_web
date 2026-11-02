@@ -74,6 +74,7 @@ table.tempo td.behind{color:var(--bad);font-weight:700}
 .lc-lbl{fill:var(--ink);font-size:12px;font-weight:600}
 .lc-olbl{fill:var(--mute);font-size:11px}
 .lc-lbl,.lc-olbl{paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round}
+.sha code{word-break:break-all}
 .lc-hit{fill:transparent}.lc-hit:hover{fill:var(--ink);fill-opacity:.05}
 table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}

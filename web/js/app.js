@@ -120,7 +120,8 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-// plugin/version.json on this site: {"latest": newest plugin, "min": oldest one this page works with}.
+// plugin/version.json on this site: {"latest": newest plugin, "min": oldest one this page works with,
+// "sha256": the published DLL's SHA-256} (written by plugin/build.ps1 -Publish; CI checks the hash).
 let pluginRelease = null;
 async function pluginReleaseInfo() {
   if (!pluginRelease) {
@@ -402,8 +403,14 @@ function renderStatus() {
   err.textContent = msg;
 }
 
+/** The published DLL's SHA-256 and how to check it, once version.json has been read. */
+function pluginHash() {
+  const sha = pluginRelease && pluginRelease.sha256;
+  return /^[0-9a-f]{64}$/.test(sha || '') ? `<p class="small mute sha">${t('plugin.sha', { sha })}</p>` : '';
+}
+
 function pluginHelp() {
-  return `<p>${t('setup.first')}</p>` + t('plugin.steps', { url: PLUGIN_URL })
+  return `<p>${t('setup.first')}</p>` + t('plugin.steps', { url: PLUGIN_URL }) + pluginHash()
     + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.connectBridge'))}</button></div>`;
 }
 
@@ -417,7 +424,7 @@ function setupCard() {
   const b = state.bridge;
   if (b && b.connected) {
     const warn = b.logDirOk === false ? `<p class="warn">${esc(t('setup.bridgeNoLogs'))}</p>` : '';
-    const steps = t('setup.updateSteps', { url: PLUGIN_URL });
+    const steps = t('setup.updateSteps', { url: PLUGIN_URL }) + pluginHash();
     const update = b.tooOld
       ? `<div class="warn err">${esc(t('setup.tooOld', { version: b.version, min: b.min }))}${steps}</div>`
       : b.outdated ? `<div class="warn">${esc(t('setup.outdated', { version: b.version, latest: b.latest }))}${steps}</div>` : '';
@@ -429,7 +436,7 @@ function setupCard() {
     return `<p>${esc(t('setup.bridgeMissing', { port: b.port }))}</p>`
       + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.reconnect'))}</button>`
       + `</div>`
-      + `<details class="plugin"><summary>${esc(t('plugin.summary'))}</summary>${t('plugin.steps', { url: PLUGIN_URL })}</details>`;
+      + `<details class="plugin"><summary>${esc(t('plugin.summary'))}</summary>${t('plugin.steps', { url: PLUGIN_URL })}${pluginHash()}</details>`;
   }
   return pluginHelp();
 }
@@ -461,7 +468,8 @@ function renderChrome() {
   btn.textContent = t('lang.switch');
   btn.title = t('lang.switch.title');
   $('#help').innerHTML =
-    `<details class="card help"><summary>${esc(t('help.about.summary'))}</summary>${t('help.about.body')}</details>`;
+    `<details class="card help"><summary>${esc(t('help.about.summary'))}</summary>${t('help.about.body')}</details>`
+    + `<details class="card help"><summary>${esc(t('help.privacy.summary'))}</summary>${t('help.privacy.body')}</details>`;
 }
 
 async function render() {
@@ -561,6 +569,8 @@ window.addEventListener('hashchange', async () => {
     if (BRIDGE_PORTS.includes(port)) await startBridge(port);
   }
   await render();
+  // The install and update steps show the DLL's SHA-256 from version.json.
+  if (!pluginRelease) pluginReleaseInfo().then(() => { if (route().page === 'list') render(); });
   // Test hook: ?log=<url> reviews a log served next to the page (used by the test harness).
   const q = new URLSearchParams(location.search);
   const sameOrigin = u => new URL(u, location.href).origin === location.origin;

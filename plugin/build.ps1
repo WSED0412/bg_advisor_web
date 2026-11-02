@@ -5,8 +5,9 @@
 #   powershell -ExecutionPolicy Bypass -File plugin\build.ps1 -Publish   # also update the web site's copy
 #
 # -Publish copies the DLL to web/plugin/ and writes web/plugin/version.json, which the page uses
-# to tell people with an older plugin that a new one is available. Raise -MinCompatible only
-# when the page stops working with older plugins.
+# to tell people with an older plugin that a new one is available, and to show the DLL's SHA-256
+# (CI checks that it matches the published DLL). Raise -MinCompatible only when the page stops
+# working with older plugins.
 
 param([switch]$Install, [switch]$Publish, [string]$MinCompatible = "")
 $ErrorActionPreference = "Stop"
@@ -52,9 +53,10 @@ if ($Publish) {
   $min = $MinCompatible
   if (-not $min -and (Test-Path $vfile)) { $min = (Get-Content $vfile -Raw | ConvertFrom-Json).min }
   if (-not $min) { $min = $version }
-  $json = '{"latest": "' + $version + '", "min": "' + $min + '"}'
+  $sha = (Get-FileHash (Join-Path $site "BgAdvisorBridge.dll") -Algorithm SHA256).Hash.ToLowerInvariant()
+  $json = '{"latest": "' + $version + '", "min": "' + $min + '", "sha256": "' + $sha + '"}'
   [IO.File]::WriteAllText($vfile, $json + "`n", (New-Object Text.UTF8Encoding $false))
-  Write-Host "已發布到網站：$site（latest $version，min $min）" -ForegroundColor Green
+  Write-Host "已發布到網站：$site（latest $version，min $min，SHA-256 $sha）" -ForegroundColor Green
 }
 
 if ($Install) {

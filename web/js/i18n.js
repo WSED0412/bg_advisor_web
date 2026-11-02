@@ -76,6 +76,7 @@ const STR = {
     'setup.noBackup': '這個版本的外掛不會備份紀錄檔和報告，請更新外掛。',
     'setup.bridgeNoLogs': '外掛找不到爐石的 Logs 資料夾，請確認 HDT 設定裡的爐石安裝路徑。',
     'setup.bridgeMissing': '找不到 HDT 外掛（連接埠 {port}）。請確認 Hearthstone Deck Tracker 有開著，而且「BG Advisor」外掛已啟用。如果瀏覽器問過「存取本機網路」而你按了封鎖，需要在網址列左邊的網站設定裡改回允許。',
+    'plugin.sha': '外掛的 SHA-256：<code>{sha}</code>。可以在 PowerShell 執行 <code>Get-FileHash 下載的檔案路徑</code>，比對 Hash 是否相同（不分大小寫）。',
     'setup.updateSteps': '<a href="{url}" download>下載新版外掛</a>，關閉 HDT，用它取代 <code>%AppData%\\HearthstoneDeckTracker\\Plugins\\BgAdvisorBridge.dll</code>（在新檔案上按右鍵 › 內容，勾選「解除封鎖」），再重新開啟 HDT。',
     'setup.tooOld': '外掛版本太舊（{version}），這個網頁需要 {min} 以上才能自動分析。',
     'setup.outdated': '有新版外掛：{version} → {latest}。',
@@ -261,6 +262,8 @@ const STR = {
     'grade.damage': '{score} / 100（{verdict}；怎麼做都很難贏，比最佳多受 {gap} 點傷害）',
 
     // help
+    'help.privacy.summary': '外掛會讀寫哪些檔案？誰能存取？',
+    'help.privacy.body': '<ul><li><b>讀取</b>：爐石 <code>Logs</code> 資料夾裡的 <code>Power.log</code>（網頁只讀得到這些檔案），以及登錄檔裡瀏覽器的安裝位置（用來在對局結束後打開報告）。</li><li><b>寫入</b>：<code>文件\\BG Advisor\\logs</code>（只備份有英雄戰場對局的紀錄檔）、<code>文件\\BG Advisor\\reports</code>（報告；刪除的移到 <code>reports\\deleted</code>），和 <code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code>（上次用的瀏覽器）。</li><li><b>網路</b>：外掛只在本機 127.0.0.1 提供資料，不會連到任何網站；網頁只從 GitHub Pages 下載網站本身的檔案，沒有分析追蹤或第三方程式。紀錄檔和報告都不會上傳。</li><li><b>報告內容</b>：你的 BattleTag、紀錄檔裡的對手名稱、英雄、陣容和分數。匯出時可以選擇把你的 BattleTag 換成 Player；對手名稱不會被換掉。</li><li><b>存取限制</b>：外掛只回應這個網站和本機網頁（localhost），其他網站一律拒絕。目前本機其他程式開的網頁也能讀取，之後會加上只有從 HDT 開啟的網頁才知道的密碼。</li></ul><p class="small mute">詳細說明和檢查外掛 SHA-256 的方法見 <a href="https://github.com/WSED0412/bg_advisor_web#隱私與安全">README</a>。</p>',
     'help.about.summary': '這是什麼？資料會上傳嗎？',
     'help.about.body': '<p>這個網頁讀取爐石的 <code>Power.log</code>，重建每回合的戰鬥，用 <a href="https://github.com/MCG-NJU/AutoTavern">TavernGym</a> 模擬器把你的站位、指向性目標、磁力和出牌順序，和其他所有選擇比較勝率後打分數。</p><p>所有分析都在你的電腦上（瀏覽器裡）進行，紀錄檔和報告都不會上傳到任何地方；報告存在這個瀏覽器裡，HDT 外掛也會把紀錄檔和報告備份在你電腦的「文件\\BG Advisor」資料夾（清除瀏覽器資料後，重新連線外掛就會還原）。</p><p class="small mute">模擬器依 36.6.3（253932）版本建置；數值和你的客戶端不同的隨從會在報告中標出。Hearthstone 與卡片資料為 Blizzard Entertainment 所有，本網站與 Blizzard 無關。<a href="https://github.com/WSED0412/bg_advisor_web">原始碼</a></p>',
   },
@@ -298,6 +301,7 @@ const STR = {
     'setup.noBackup': 'This plugin version does not back up logs and reports: please update it.',
     'setup.bridgeNoLogs': "The plugin cannot find Hearthstone's Logs folder. Check the Hearthstone path in HDT's settings.",
     'setup.bridgeMissing': 'The HDT plugin was not found (port {port}). Make sure Hearthstone Deck Tracker is running and the "BG Advisor" plugin is enabled. If the browser asked about "local network" access and you blocked it, allow it again in the site settings left of the address bar.',
+    'plugin.sha': "The plugin's SHA-256: <code>{sha}</code>. To check a download, run <code>Get-FileHash path-to-the-file</code> in PowerShell and compare the Hash (case does not matter).",
     'setup.updateSteps': '<a href="{url}" download>Download the new plugin</a>, close HDT, replace <code>%AppData%\\HearthstoneDeckTracker\\Plugins\\BgAdvisorBridge.dll</code> with it (right-click the new file › Properties › tick "Unblock"), then start HDT again.',
     'setup.tooOld': 'The plugin is too old ({version}); this page needs {min} or newer to analyze games automatically.',
     'setup.outdated': 'A new plugin is available: {version} → {latest}.',
@@ -480,6 +484,8 @@ const STR = {
     'grade.win': '{score} / 100 ({verdict}; {gap} win-rate points below the best)',
     'grade.damage': '{score} / 100 ({verdict}; every option likely loses, {gap} more damage than the best)',
 
+    'help.privacy.summary': 'What does the plugin read and write? Who can reach it?',
+    'help.privacy.body': '<ul><li><b>Reads</b>: <code>Power.log</code> in Hearthstone\'s <code>Logs</code> folder (the page can read only these files), and browser install paths in the registry (to open the report after a game).</li><li><b>Writes</b>: <code>Documents\\BG Advisor\\logs</code> (only logs with a Battlegrounds game), <code>Documents\\BG Advisor\\reports</code> (reports; deleted ones move to <code>reports\\deleted</code>) and <code>%AppData%\\HearthstoneDeckTracker\\BgAdvisor.txt</code> (the browser last used).</li><li><b>Network</b>: the plugin serves data on 127.0.0.1 only and connects to no web site; the page downloads only its own files from GitHub Pages, with no analytics or third-party code. Logs and reports are never uploaded.</li><li><b>Reports</b> hold your BattleTag, opponents\' names from the log, heroes, boards and scores. When exporting you can replace your BattleTag with Player; opponents\' names are kept.</li><li><b>Access</b>: the plugin answers only this site and local pages (localhost); other sites are refused. Pages served by other local programs can currently read it too; a token known only to pages opened from HDT will close that.</li></ul><p class="small mute">Details, and how to check the plugin\'s SHA-256: <a href="https://github.com/WSED0412/bg_advisor_web#privacy-and-security-english">README</a>.</p>',
     'help.about.summary': 'What is this? Is anything uploaded?',
     'help.about.body': '<p>This page reads Hearthstone\'s <code>Power.log</code>, rebuilds each combat and uses the <a href="https://github.com/MCG-NJU/AutoTavern">TavernGym</a> simulator to score your positioning, friendly targets, Magnetic placement and play order against every alternative.</p><p>Everything runs on your computer, inside the browser. Logs and reports are never uploaded; reports are stored in this browser, and the HDT plugin backs up logs and reports in the "Documents\\BG Advisor" folder on your computer (after clearing the browser\'s data, reconnecting the plugin restores them).</p><p class="small mute">The simulator is built for patch 36.6.3 (253932); minions whose stats differ in your client are flagged in the report. Hearthstone and its card data belong to Blizzard Entertainment; this site is not affiliated with Blizzard. <a href="https://github.com/WSED0412/bg_advisor_web">Source code</a></p>',
   },

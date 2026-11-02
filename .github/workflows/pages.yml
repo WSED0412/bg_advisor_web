@@ -35,6 +35,14 @@ jobs:
             engine/target
           key: cargo-${{ hashFiles('engine/Cargo.toml', 'engine/Cargo.lock', 'engine/src/**') }}
 
+      # The page shows the plugin's SHA-256 from version.json (written by plugin/build.ps1 -Publish).
+      - name: Check the published plugin's SHA-256
+        run: |
+          want=$(python3 -c "import json; print(json.load(open('web/plugin/version.json'))['sha256'])")
+          got=$(sha256sum web/plugin/BgAdvisorBridge.dll | cut -d' ' -f1)
+          echo "version.json: $want"; echo "DLL:          $got"
+          test "$want" = "$got"
+
       # A syntax error in any module leaves the whole page blank: check them all first.
       - name: Check the JavaScript and run its tests
         run: |

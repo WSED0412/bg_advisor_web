@@ -50,8 +50,75 @@ Chrome、Edge、Brave、Firefox 都能用。
 - 報告列表上方的「匯出全部報告」把所有報告存成一個 JSON 檔；每份報告最下面的「匯出這份報告」只存那一份。
 - 「匯入報告」讀回這種檔案（可以一次選多個），不需要外掛。用來分享給別人、搬到別的瀏覽器都可以。
 - 已經有的報告不會被覆蓋；別人的報告在列表上會標「匯入（玩家名稱）」。有連線外掛的話，匯入的報告也會存進備份。
-- 匯出的報告裡有你的 BattleTag（例如 `名字#1234`），分享前請留意。紀錄檔本身不會被匯出。
+- 匯出時會問要不要隱藏你的 BattleTag（例如 `名字#1234`），要分享給別人時請選隱藏；對手的名稱不會被換掉。紀錄檔本身不會被匯出。
 - 匯入的檔案會先檢查格式，並把可能被當成 HTML 的字元換掉，別人給的檔案不能在網頁上執行程式。
+
+### 隱私與安全
+
+以下依照目前的程式碼（外掛 0.3.0）說明。
+
+**外掛讀取的檔案**
+- 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的
+  `Hearthstone_*\Power.log` 和 `Power.log`。網頁只能讀到這份清單裡的檔案，讀不到電腦上的其他檔案。
+- Windows 登錄檔裡瀏覽器的安裝路徑，用來在對局結束後用你常用的瀏覽器打開報告。
+
+**外掛寫入的檔案**
+- `文件\BG Advisor\logs\<工作階段>.Power.log.gz`：只備份含有英雄戰場對局的紀錄檔。
+- `文件\BG Advisor\reports\<key>.json`：網頁產生的報告；在網頁上刪除的報告會移到 `reports\deleted`，不會真的刪掉。
+- `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄上次用的是哪個瀏覽器。
+
+**網路**
+- 外掛只在本機 `127.0.0.1` 的 47613～47617 埠提供資料，其他電腦連不到；外掛不會主動連線到任何網站。
+- 網頁只向 GitHub Pages 下載網站本身的檔案（程式、模擬器、卡牌名稱、`plugin/version.json`），再向本機的外掛讀紀錄檔。
+  沒有分析追蹤、廣告或第三方程式；GitHub 會像其他網站一樣看到你的 IP。
+- 分析在瀏覽器裡進行，紀錄檔和報告都不會上傳。報告存在瀏覽器的 IndexedDB（只有這個網站讀得到）和上面的備份資料夾。
+
+**報告裡有什麼**：你的 BattleTag、對手在紀錄檔裡的名稱、英雄、每回合雙方的隨從和評分。
+
+**匯出**：匯出時會問要不要隱藏你的 BattleTag；選「是」會把你的名稱（含 `#1234` 和不含的寫法）換成 `Player`，
+報告的 key 也一起改。對手的名稱不會被換掉。
+
+**誰能存取外掛（目前的限制）**
+- 只接受 `Host` 是 `127.0.0.1` 或 `localhost` 的請求（防 DNS rebinding）。
+- 瀏覽器裡只有這個網站和本機網頁（`http://localhost`、`http://127.0.0.1` 的任何埠）能讀取回應；其他網站的請求直接拒絕。
+- 寫入和刪除備份的報告必須帶上這些允許的來源。
+- 已知的不足：本機其他程式開的網頁（任何埠的 localhost）目前也能讀紀錄檔、改備份；之後會加上只有從 HDT 開啟的網頁才知道的密碼（token）來補上。
+  本機的程式本來就能直接讀這些檔案，這項限制針對的是網頁。
+- 網站的網址 `wsed0412.github.io` 和同一個 GitHub 帳號的其他 GitHub Pages 網站共用同一個來源。
+
+**檢查下載的外掛**：`plugin/version.json` 裡的 `sha256` 是網站上 DLL 的 SHA-256（由 `plugin\build.ps1 -Publish`
+產生，CI 會檢查兩者一致）。下載後在 PowerShell 執行：
+
+```powershell
+(Get-FileHash "$env:USERPROFILE\Downloads\BgAdvisorBridge.dll" -Algorithm SHA256).Hash
+```
+
+和網頁安裝說明裡顯示的 SHA-256 比對（不分大小寫）。DLL 沒有程式碼簽章，所以 Windows 會要求「解除封鎖」，
+防毒軟體也可能誤報；可以從原始碼自己編譯（見下一節），建置是可重現的（`/deterministic`），結果應和網站上的 DLL 位元組相同。
+
+#### Privacy and security (English)
+
+As of the current code (plugin 0.3.0):
+
+- **Read by the plugin**: `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (only files in
+  that listing can be served), and browser install paths in the Windows registry (to open the report in your browser).
+- **Written by the plugin**: `Documents\BG Advisor\logs\<session>.Power.log.gz` (only sessions with a Battlegrounds
+  game), `Documents\BG Advisor\reports\<key>.json` (reports from the page; deleted ones move to `reports\deleted`),
+  and `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser last used).
+- **Network**: the plugin listens on `127.0.0.1` ports 47613-47617 only and connects to nothing. The page downloads
+  only its own files from GitHub Pages and reads logs from the local plugin. No analytics, ads or third-party code;
+  GitHub sees your IP like any web site. Analysis runs in the browser; logs and reports are never uploaded.
+- **Reports** contain your BattleTag, opponents' names as seen in the log, heroes, boards and scores. Exporting asks
+  whether to hide your BattleTag (replaced by `Player`, also in the report key); opponents' names are kept.
+- **Access to the plugin**: `Host` must be `127.0.0.1`/`localhost`; only this site and local pages
+  (`http://localhost`, `http://127.0.0.1`, any port) may read responses; other sites are refused; writes need one
+  of those origins. Known gap: a page served by another local program can currently read logs and change the backup;
+  a token known only to pages opened from HDT will close it. `wsed0412.github.io` is shared with the account's other
+  GitHub Pages sites.
+- **Checking the DLL**: compare `(Get-FileHash <file> -Algorithm SHA256).Hash` with `sha256` in
+  `plugin/version.json` (shown on the page; CI checks it matches the published DLL). The DLL is not code-signed, so
+  Windows asks you to unblock it and antivirus may flag it; the build is deterministic, so building it yourself
+  should give the same bytes.
 
 ### 外掛更新與編譯
 
