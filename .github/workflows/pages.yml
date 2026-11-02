@@ -33,6 +33,12 @@ jobs:
             engine/target
           key: cargo-${{ hashFiles('engine/Cargo.toml', 'engine/Cargo.lock', 'engine/src/**') }}
 
+      # A syntax error in any module leaves the whole page blank: check them all first.
+      - name: Check the JavaScript and run its tests
+        run: |
+          for f in web/js/*.js; do node --check "$f"; done
+          node --test tests/
+
       # engine/.cargo/config.toml builds for wasm32 by default; tests run on the host.
       - name: Test the engine bindings
         working-directory: engine
