@@ -323,14 +323,6 @@ async function connectBridge() {
   }
 }
 
-async function forgetBridge() {
-  if (state.bridgeTimer) clearInterval(state.bridgeTimer);
-  state.bridgeTimer = null;
-  state.bridge = null;
-  await setKV('bridgePort', null);
-  render();
-}
-
 /** #/bridge/<port>: opened by the plugin. */
 async function handleBridgeRoute() {
   const m = /^#\/bridge\/(\d+)$/.exec(location.hash);
@@ -431,12 +423,12 @@ function setupCard() {
       : b.outdated ? `<div class="warn">${esc(t('setup.outdated', { version: b.version, latest: b.latest }))}${steps}</div>` : '';
     return `<p>${esc(t('setup.bridgeOn', { version: b.version || '?' }))}</p>${update}${warn}${backupInfo(b)}`
       + `<div class="actions"><button class="ghost" data-act="all">${esc(t('btn.analyzeAll'))}</button>`
-      + `<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button>${precisionToggle()}</div>`;
+      + `${precisionToggle()}</div>`;
   }
   if (b) {
     return `<p>${esc(t('setup.bridgeMissing', { port: b.port }))}</p>`
       + `<div class="actions"><button data-act="connect-bridge">${esc(t('btn.reconnect'))}</button>`
-      + `<button class="ghost" data-act="forget-bridge">${esc(t('btn.forgetBridge'))}</button></div>`
+      + `</div>`
       + `<details class="plugin"><summary>${esc(t('plugin.summary'))}</summary>${t('plugin.steps', { url: PLUGIN_URL })}</details>`;
   }
   return pluginHelp();
@@ -524,7 +516,6 @@ document.addEventListener('click', async (ev) => {
   } else if (a.dataset.act === 'export-all') {
     downloadReports(await allGames(), `bg_advisor_reports_${today()}.json`);
   } else if (a.dataset.act === 'all') analyzeBackups();
-  else if (a.dataset.act === 'forget-bridge') forgetBridge();
   else if (a.dataset.act === 'connect-bridge') connectBridge();
   else if (a.dataset.act === 'lang') {
     const y = window.scrollY;
