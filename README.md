@@ -147,4 +147,4 @@ python tools/test_server.py --port 8790     # http://127.0.0.1:8790/
 評分邏輯移植自 Python 版 bg_advisor，兩者用同一個模擬器和同一組隨機種子，結果一致。
 
 Hearthstone 與卡片資料為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。
-TavernGym 為 MIT 授權。
+本專案以 MIT 授權發布（見 [LICENSE](LICENSE)）；TavernGym 也是 MIT 授權。
