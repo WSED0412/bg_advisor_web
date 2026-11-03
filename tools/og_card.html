@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+  The link preview image (web/og.png, 1200x630) that Discord, Facebook, LINE... show for the site.
+  Rendered by tools/gen_og.py, which fills in the cards (BOARD there) and copies the page into
+  web/ for a moment so the art loads.
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: radial-gradient(900px 500px at 85% 10%, rgba(224, 166, 58, .18), transparent 60%),
+                radial-gradient(700px 400px at 0% 100%, rgba(79, 179, 124, .10), transparent 60%), #16171a;
+    color: #ece8e1; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+    position: relative;
+  }
+  .text { position: absolute; left: 64px; top: 56px; width: 760px; }
+  .logo { display: flex; align-items: center; gap: 18px; }
+  .logo svg { width: 64px; height: 64px; flex: none; }
+  h1 { margin: 0; font-size: 64px; line-height: 1.05; letter-spacing: -.5px; font-weight: 800; }
+  .zh { margin: 18px 0 0; font-size: 42px; font-weight: 700; color: #e0a63a; }
+  .tag { margin: 18px 0 0; font-size: 26px; line-height: 1.45; color: #b9b3a9; }
+  .hero { position: absolute; right: 72px; top: 52px; width: 230px; height: 230px; border-radius: 50%;
+          object-fit: cover; box-shadow: 0 0 0 6px #e0a63a, 0 18px 50px rgba(0, 0, 0, .55); }
+  .score { position: absolute; right: 92px; top: 300px; display: flex; gap: 12px; }
+  .pill { background: #2a2b31; border-radius: 12px; padding: 8px 16px; font-size: 22px; color: #b9b3a9; }
+  .pill b { color: #4fb37c; font-size: 30px; margin-left: 8px; }
+  .board { position: absolute; left: 64px; right: 64px; bottom: 60px; display: grid;
+           grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .m { height: 78px; border-radius: 12px; padding: 10px 14px; box-sizing: border-box; position: relative;
+       overflow: hidden; background: #2a2b31; }
+  .m img { position: absolute; right: 0; top: 0; height: 100%; }
+  .m::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #2a2b31 30%, transparent 90%); }
+  .m span { position: relative; z-index: 1; }
+  .m.gold::before { content: ""; position: absolute; inset: 0; border-radius: 12px; box-shadow: inset 0 0 0 3px #e0a63a; z-index: 2; }
+  .m .n { font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .m .st { font-size: 21px; font-variant-numeric: tabular-nums; color: #ece8e1; }
+  .lbl { position: absolute; left: 64px; bottom: 150px; font-size: 20px; color: #9b968d; }
+</style>
+</head>
+<body>
+<div class="text">
+  <div class="logo">
+    <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#e0a63a"/><path d="M9 22V10h6.5a4 4 0 0 1 0 8H9m6.5 0L22 22" stroke="#1a1408" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>Battleground Advisor</h1>
+  </div>
+  <p class="zh">英雄戰場復盤</p>
+  <p class="tag">用模擬器替你的站位與出牌打分數，<br>每局結束自動分析 · 免費、在瀏覽器裡執行</p>
+</div>
+<img class="hero" src="../art/heroes/TB_BaconShop_HERO_16.webp" alt="">
+<div class="score"><span class="pill">站位<b>91</b></span><span class="pill">決策<b>78</b></span></div>
+<div class="lbl">每回合重建雙方陣容，試過所有排法</div>
+<div class="board"><!--BOARD--></div>
+</body>
+</html>
