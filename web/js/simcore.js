@@ -130,6 +130,10 @@ export function applySteps(g, steps, settle = true) {
     if (kind === 'play') {
       const hand = handIndex(me, st[1]);
       let pos = st[2] === null || st[2] === undefined ? me.board.length : Math.min(st[2], me.board.length);
+      const left = st.length > 3 ? st[3] : null;  // eid of the minion to play it right of
+      if (left !== null && left !== undefined && me.board.some(m => m.eid === left)) {
+        pos = boardIndex(me, left) + 1;
+      }
       if (!('eid' in me.hand[hand])) pos = 0;  // spells (minions in hand carry an eid)
       step(g, A_PLAY + hand * N_POS + pos);
     } else if (kind === 'magnetize') {

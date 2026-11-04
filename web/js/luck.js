@@ -51,7 +51,11 @@ export function combatLuck(rounds) {
 export function discoverPool(pick, lobby) {
   const offered = pick.options.map(o => card(stripGolden(o.card)));
   if (offered.some(c => !isPoolMinion(c))) return null;  // not plain Tavern minions
-  const tiers = new Set(offered.map(c => c.tier));
+  let tiers = new Set(offered.map(c => c.tier));
+  if (tiers.size > 1) {  // not a one-tier Discover: anything up to the highest tier offered
+    const top = Math.max(...tiers);
+    tiers = new Set(Array.from({ length: top }, (_, i) => i + 1));
+  }
   let types = new Set(lobby);
   const src = pick.source ? ((card(pick.source) || {}).text || '') : '';
   const only = new Set(TYPE_WORDS.filter(([w]) => src.includes(w)).map(([, t]) => t));

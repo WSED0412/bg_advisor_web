@@ -51,16 +51,19 @@ export function pyRound(x) {
   return d < 0.5 ? f : f + 1;
 }
 
-/** Win mode: -3 per win-rate point given up. Damage mode: -10 per hero damage point. */
+/** Win mode: -3 per win-rate point given up. Damage mode: -10 per hero damage point,
+ *  blended with the win-mode penalty by how close the better equity is to HOPELESS_EQUITY,
+ *  so the score does not jump when a decision crosses that line. */
 export function grade(mine, best, hopeless) {
+  const eqGap = Math.max(0, 100 * (equity(best) - equity(mine)));
   if (hopeless) {
     const gap = Math.max(0, netDamage(best) - netDamage(mine));
-    const score = pyRound(Math.max(0, 100 - 10 * gap));
+    const w = Math.min(1, Math.max(equity(best), equity(mine)) / HOPELESS_EQUITY);
+    const score = pyRound(Math.max(0, 100 - (w * 3 * eqGap + (1 - w) * 10 * gap)));
     return { score, verdict: verdict(score), gap, mode: 'damage' };
   }
-  const gap = Math.max(0, 100 * (equity(best) - equity(mine)));
-  const score = pyRound(Math.max(0, 100 - 3 * gap));
-  return { score, verdict: verdict(score), gap, mode: 'win' };
+  const score = pyRound(Math.max(0, 100 - 3 * eqGap));
+  return { score, verdict: verdict(score), gap: eqGap, mode: 'win' };
 }
 
 export function describeGrade(g) {

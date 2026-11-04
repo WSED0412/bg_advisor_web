@@ -1762,8 +1762,8 @@
    0.01
   ],
   "grade": {
-   "score": 58,
-   "verdict": "\u660e\u986f\u5931\u8aa4",
+   "score": 74,
+   "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
    "gap": 4.187000000000001,
    "mode": "damage"
   }
@@ -1791,7 +1791,7 @@
    0.01
   ],
   "grade": {
-   "score": 73,
+   "score": 83,
    "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
    "gap": 2.7039,
    "mode": "damage"
@@ -1820,7 +1820,7 @@
    0.01
   ],
   "grade": {
-   "score": 79,
+   "score": 86,
    "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
    "gap": 2.0991,
    "mode": "damage"
@@ -1849,7 +1849,7 @@
    0.01
   ],
   "grade": {
-   "score": 47,
+   "score": 67,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 5.313400000000001,
    "mode": "damage"
@@ -1878,7 +1878,7 @@
    0.01
   ],
   "grade": {
-   "score": 100,
+   "score": 99,
    "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 0.0,
    "mode": "damage"
@@ -1907,7 +1907,7 @@
    0.01
   ],
   "grade": {
-   "score": 43,
+   "score": 65,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 5.6752,
    "mode": "damage"
@@ -1936,7 +1936,7 @@
    0.01
   ],
   "grade": {
-   "score": 100,
+   "score": 99,
    "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 0.0,
    "mode": "damage"
@@ -1965,7 +1965,7 @@
    0.01
   ],
   "grade": {
-   "score": 32,
+   "score": 58,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 6.753800000000001,
    "mode": "damage"
@@ -1994,7 +1994,7 @@
    0.01
   ],
   "grade": {
-   "score": 100,
+   "score": 99,
    "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 0.0,
    "mode": "damage"
@@ -2023,7 +2023,7 @@
    0.01
   ],
   "grade": {
-   "score": 81,
+   "score": 87,
    "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
    "gap": 1.9363000000000001,
    "mode": "damage"
@@ -2052,7 +2052,7 @@
    0.01
   ],
   "grade": {
-   "score": 33,
+   "score": 58,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 6.7424,
    "mode": "damage"
@@ -2081,7 +2081,7 @@
    0.01
   ],
   "grade": {
-   "score": 30,
+   "score": 57,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 6.9623,
    "mode": "damage"
@@ -2110,8 +2110,8 @@
    0.01
   ],
   "grade": {
-   "score": 86,
-   "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
+   "score": 91,
+   "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 1.3503000000000003,
    "mode": "damage"
   }
@@ -2139,7 +2139,7 @@
    0.01
   ],
   "grade": {
-   "score": 100,
+   "score": 99,
    "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 0.0,
    "mode": "damage"
@@ -2168,7 +2168,7 @@
    0.01
   ],
   "grade": {
-   "score": 100,
+   "score": 99,
    "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 0.0,
    "mode": "damage"
@@ -2197,8 +2197,8 @@
    0.01
   ],
   "grade": {
-   "score": 63,
-   "verdict": "\u660e\u986f\u5931\u8aa4",
+   "score": 76,
+   "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
    "gap": 3.7343000000000006,
    "mode": "damage"
   }
@@ -2226,7 +2226,7 @@
    0.01
   ],
   "grade": {
-   "score": 22,
+   "score": 52,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 7.8124,
    "mode": "damage"
@@ -2255,8 +2255,8 @@
    0.01
   ],
   "grade": {
-   "score": 90,
-   "verdict": "\u9084\u53ef\u4ee5\u66f4\u597d",
+   "score": 93,
+   "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
    "gap": 1.0071000000000003,
    "mode": "damage"
   }
@@ -2313,10 +2313,126 @@
    0.01
   ],
   "grade": {
-   "score": 44,
+   "score": 65,
    "verdict": "\u660e\u986f\u5931\u8aa4",
    "gap": 5.6458,
    "mode": "damage"
+  }
+ },
+ {
+  "mine": {
+   "n": 1000,
+   "win": 0.03,
+   "tie": 0.0,
+   "loss": 0.97,
+   "dmg_dealt": 3.0,
+   "dmg_taken": 8.0
+  },
+  "best": {
+   "n": 1000,
+   "win": 0.051,
+   "tie": 0.0,
+   "loss": 0.949,
+   "dmg_dealt": 3.0,
+   "dmg_taken": 4.5
+  },
+  "hopeless": false,
+  "rank_mine": [
+   0.03,
+   -7.67
+  ],
+  "grade": {
+   "score": 94,
+   "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
+   "gap": 2.0999999999999996,
+   "mode": "win"
+  }
+ },
+ {
+  "mine": {
+   "n": 1000,
+   "win": 0.03,
+   "tie": 0.0,
+   "loss": 0.97,
+   "dmg_dealt": 3.0,
+   "dmg_taken": 8.0
+  },
+  "best": {
+   "n": 1000,
+   "win": 0.049,
+   "tie": 0.0,
+   "loss": 0.951,
+   "dmg_dealt": 3.0,
+   "dmg_taken": 4.5
+  },
+  "hopeless": true,
+  "rank_mine": [
+   -7.67,
+   0.03
+  ],
+  "grade": {
+   "score": 94,
+   "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
+   "gap": 3.5375000000000005,
+   "mode": "damage"
+  }
+ },
+ {
+  "mine": {
+   "n": 1000,
+   "win": 0.0,
+   "tie": 0.0,
+   "loss": 1.0,
+   "dmg_dealt": 0.0,
+   "dmg_taken": 9.0
+  },
+  "best": {
+   "n": 1000,
+   "win": 0.0,
+   "tie": 0.0,
+   "loss": 1.0,
+   "dmg_dealt": 0.0,
+   "dmg_taken": 5.5
+  },
+  "hopeless": true,
+  "rank_mine": [
+   -9.0,
+   0.0
+  ],
+  "grade": {
+   "score": 65,
+   "verdict": "\u660e\u986f\u5931\u8aa4",
+   "gap": 3.5,
+   "mode": "damage"
+  }
+ },
+ {
+  "mine": {
+   "n": 1000,
+   "win": 0.04,
+   "tie": 0.02,
+   "loss": 0.94,
+   "dmg_dealt": 2.0,
+   "dmg_taken": 7.0
+  },
+  "best": {
+   "n": 1000,
+   "win": 0.01,
+   "tie": 0.0,
+   "loss": 0.99,
+   "dmg_dealt": 2.0,
+   "dmg_taken": 3.0
+  },
+  "hopeless": false,
+  "rank_mine": [
+   0.05,
+   -6.5
+  ],
+  "grade": {
+   "score": 100,
+   "verdict": "\u6700\u4f73\u6216\u63a5\u8fd1\u6700\u4f73",
+   "gap": 0.0,
+   "mode": "win"
   }
  }
 ]

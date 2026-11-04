@@ -204,8 +204,20 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
   const played = new Set(run.map(p => p.entity));
   if (run.some(p => p.creator && played.has(p.creator))) throw new Skip('plays_given_card');
   const notes = [];
-  const { g, ent, hidOf } = setup(engine, run, combat, notes);
+  const { g, me, ent, hidOf } = setup(engine, run, combat, notes);
   try {
+    // A minion keeps its eid from hand to board, so cards played in this run can be neighbours.
+    const handEid = new Map(me.hand.map(h => [h.hid, h.eid ?? null]));
+    const entRun = new Map(ent);
+    for (const p of run) entRun.set(p.entity, handEid.get(hidOf.get(p.seq)) ?? null);
+    // [slot, eid of the minion to its left]: a different order changes the board the card
+    // lands on, so it goes next to the minion it really went next to.
+    const place = p => {
+      if (p.kind !== 'MINION' || p.position === null || p.position === undefined) return [null, null];
+      if (p.position === 0) return [0, null];
+      const left = p.position <= p.boardBefore.length ? p.boardBefore[p.position - 1] : null;
+      return [p.position, left ? entRun.get(left.entity) ?? null : null];
+    };
     const stepsFor = p => {
       let target = null, magnet = null;
       if (p.targetIndex !== null) {
@@ -218,7 +230,9 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
         if (!ent.has(e)) throw new Skip('magnet_new_minion');
         magnet = ent.get(e);
       }
-      return playSteps(p, hidOf.get(p.seq) ?? null, { target, magnet });
+      const steps = playSteps(p, hidOf.get(p.seq) ?? null, { target, magnet });
+      if (steps[0][0] === 'play') steps[0] = ['play', steps[0][1], ...place(p)];
+      return steps;
     };
     const perPlay = new Map(run.map(p => [p.seq, stepsFor(p)]));
     // After the plays, arrange the warband as it was in the combat that followed.

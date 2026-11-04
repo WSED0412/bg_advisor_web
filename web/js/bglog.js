@@ -416,10 +416,17 @@ export function cardChanges(lines) {
   }
   flush();
   const out = [];
-  for (const [cid, cnt] of seen) {
+  for (const [cid, raw] of seen) {
     const c = cardOf(cid);
     if (!c || c.kind !== 'minion') continue;
     const engine = [c.atk, c.hp, c.tier];
+    // A copy created without its tier (summoned in combat...) counts as the engine's tier.
+    const cnt = new Map();
+    for (const [k, n] of raw) {
+      const [a, h, t] = k.split(',').map(Number);
+      const key = [a, h, t === 0 ? engine[2] : t].join(',');
+      cnt.set(key, (cnt.get(key) || 0) + n);
+    }
     if (cnt.has(engine.join(',')) || cnt.size !== 1) continue;
     const [[k, n]] = [...cnt];
     let client = k.split(',').map(Number);
