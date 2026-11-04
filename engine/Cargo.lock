@@ -88,8 +88,8 @@ dependencies = [
 
 [[package]]
 name = "taverngym"
-version = "1.0.0"
-source = "git+https://github.com/MCG-NJU/AutoTavern?rev=fb61201a557ddd36a411cf44aac51ce4d9b606ce#fb61201a557ddd36a411cf44aac51ce4d9b606ce"
+version = "1.1.0"
+source = "git+https://github.com/MCG-NJU/AutoTavern?rev=1c2086a997afde46d68c6c5992cab194ddcfce88#1c2086a997afde46d68c6c5992cab194ddcfce88"
 dependencies = [
  "serde",
  "serde_json",
