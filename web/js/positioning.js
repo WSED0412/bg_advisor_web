@@ -1,8 +1,11 @@
 // Score a warband arrangement: how does my order compare with the best order?
 //
-// Every arrangement of my minions fights the opponent's warband; all see the same random
-// seeds. A quick screen of every arrangement keeps the best candidates, which are then
-// measured again with many more combats.
+// Every arrangement of my minions fights the opponent's warband. A quick screen of every
+// arrangement keeps the best candidates, which are then measured again with many more
+// combats. All arrangements start from the same random seeds, but one different attack
+// shifts every later roll, so that cancels almost no luck: measured on real boards, the noise
+// in the difference between two orders is what unrelated seeds would give. At 4000 combats
+// that is about 1.1 win-rate points (one standard deviation) for two even arrangements.
 
 import { ME, boardNames } from './scene.js';
 import { grade, isHopeless, rankKey, cmpKey, sortBest, sameOutcome } from './scoring.js';
@@ -53,7 +56,7 @@ function uniqueOrders(board) {
 
 const keyOf = o => o.join(',');
 
-export async function evaluateGame(sim, game, nFinal = 2000, nScreen = 200, keep = 24) {
+export async function evaluateGame(sim, game, nFinal = 4000, nScreen = 200, keep = 24) {
   const t0 = performance.now();
   const names = boardNames(game);
   const ids = game.view(ME).me.board.map(m => m.id);
@@ -66,7 +69,7 @@ export async function evaluateGame(sim, game, nFinal = 2000, nScreen = 200, keep
   const jobs = os => os.map(o => ({ id: keyOf(o), order: o }));
 
   let finalists;
-  if (orders.length * nFinal <= 400000) {
+  if (orders.length * nFinal <= 800000) {
     finalists = orders;
   } else {
     const screened = await sim.run(stateJson, jobs(orders), nScreen);

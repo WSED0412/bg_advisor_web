@@ -13,7 +13,7 @@ import { gameLuck } from './luck.js';
 import { chanceOf, describeGrade, outcomeDict, pyRound } from './scoring.js';
 
 export const PRECISION = {
-  full: { pos: 2000, screen: 200, dec: 1000 },
+  full: { pos: 4000, screen: 200, dec: 1000 },
   quick: { pos: 500, screen: 100, dec: 300 },
 };
 

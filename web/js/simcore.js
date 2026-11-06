@@ -11,7 +11,8 @@
 // play opened with the cards really taken: the option with that card if offered, else the
 // first option swapped for that card). `final` lists minion eids/card ids giving my warband's
 // order afterwards.
-// Every job sees the same random seeds, so variants differ only by what the job changes.
+// Every job starts from the same random seeds, but that does not cancel luck: the first roll
+// a variant uses differently shifts all the later ones, so results still differ by chance.
 // Recruit actions can be random too ("a random friendly minion gets +2/+2"): a job with steps
 // is replayed under rerolls(n) recruit seeds, each followed by its share of the combats.
 
