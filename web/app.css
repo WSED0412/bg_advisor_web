@@ -104,7 +104,7 @@ background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1
 .m[data-card]{cursor:help}
 .m[data-card]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 #cardtip{position:absolute;z-index:50;max-width:min(300px,calc(100vw - 16px));padding:10px 12px;border-radius:10px;
-background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:13px;line-height:1.5}
+background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:13px;line-height:1.5;overflow-wrap:break-word}
 #cardtip[hidden]{display:none}
 #cardtip .tn{font-weight:700;font-size:14px}
 #cardtip .tm{color:var(--mute);font-size:12px;margin:1px 0 4px}

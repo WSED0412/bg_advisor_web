@@ -52,3 +52,13 @@ test('effectHtml keeps only <b> and <i> and escapes everything else', () => {
   assert.equal(effectHtml('<img src=x onerror=alert(1)> & "q"'), '&lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot;');
   assert.equal(effectHtml('<b onclick="x">hi</b>'), '&lt;b onclick=&quot;x&quot;&gt;hi</b>');
 });
+
+test('effectHtml drops [x] anywhere, handles other cases', () => {
+  assert.equal(effectHtml('a <b>b\n[x]</b> c'), 'a <b>b<br></b> c');
+  assert.equal(effectHtml('<B>x</B>'), '<B>x</B>');
+  assert.equal(effectHtml('a\r\nb'), 'a<br>b');
+  assert.equal(effectHtml(null), '');
+  assert.equal(effectHtml('<a href="javascript:alert(1)">x</a><svg onload=1>'),
+    '&lt;a href=&quot;javascript:alert(1)&quot;&gt;x&lt;/a&gt;&lt;svg onload=1&gt;');
+  assert.equal(effectHtml('<b>open'), '<b>open');
+});
