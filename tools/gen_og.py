@@ -34,7 +34,7 @@ BOARD = [("BG34_690", 75, 14), ("BG25_009", 65, 1), ("BG36_511_G", 147, 50), ("B
 
 
 def board_html() -> str:
-    names = json.loads((WEB / "data" / "names_zhTW.json").read_text("utf-8"))
+    names = json.loads((WEB / "data" / "names_en.json").read_text("utf-8"))
     cells = []
     for cid, atk, hp in BOARD:
         base = cid.removesuffix("_G")
