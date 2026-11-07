@@ -69,7 +69,8 @@ const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  */
 function replaceNames(v, names, to) {
   if (!names.length) return v;
-  const re = new RegExp(`(?<![A-Za-z0-9_])(?:${names.map(reEscape).join('|')})(?![A-Za-z0-9_])`, 'g');
+  // A name is replaced together with a #1234 that follows it, so "Ed#1234" never becomes "Player#1234".
+  const re = new RegExp(`(?<![A-Za-z0-9_])(?:${names.map(reEscape).join('|')})(?:#[0-9]+)?(?![A-Za-z0-9_])`, 'g');
   const walk = x => {
     if (typeof x === 'string') return x.replace(re, to);
     if (Array.isArray(x)) return x.map(walk);

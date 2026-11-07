@@ -40,3 +40,8 @@ test('sanitizeReport rejects backups that are not reports and keeps good ones', 
   const ok = sanitizeReport({ key: '12_34_56_7_Ed_1234', rounds: [{ round: 1 }] });
   assert.ok(ok && ok.rounds.length === 1);
 });
+
+test('anonymize drops the #1234 even when report.player has no tag', () => {
+  const out = anonymize({ key: '1_Ed', player: 'Ed', note: 'I am Ed#1234 (Ed)' });
+  assert.equal(out.note, 'I am Player (Player)');
+});
