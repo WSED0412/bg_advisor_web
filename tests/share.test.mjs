@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { anonymize, sanitizeReport } from '../web/js/share.js';
+import { effectHtml } from '../web/js/cardtip.js';
 
 test('anonymize removes the BattleTag everywhere and keeps other players', () => {
   const r = { key: '12_34_56_7_Ed_1234', player: 'Ed#1234',
@@ -44,4 +45,10 @@ test('sanitizeReport rejects backups that are not reports and keeps good ones', 
 test('anonymize drops the #1234 even when report.player has no tag', () => {
   const out = anonymize({ key: '1_Ed', player: 'Ed', note: 'I am Ed#1234 (Ed)' });
   assert.equal(out.note, 'I am Player (Player)');
+});
+
+test('effectHtml keeps only <b> and <i> and escapes everything else', () => {
+  assert.equal(effectHtml('[x]<b>Battlecry:</b> Get 2\n<i>x</i>'), '<b>Battlecry:</b> Get 2<br><i>x</i>');
+  assert.equal(effectHtml('<img src=x onerror=alert(1)> & "q"'), '&lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot;');
+  assert.equal(effectHtml('<b onclick="x">hi</b>'), '&lt;b onclick=&quot;x&quot;&gt;hi</b>');
 });

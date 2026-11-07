@@ -5,6 +5,7 @@
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
 import { esc, heroIcon, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
+import { initCardTip } from './cardtip.js';
 import { anonymize, downloadReports, readExport, sanitizeReport, today } from './share.js';
 
 const $ = sel => document.querySelector(sel);
@@ -639,6 +640,7 @@ window.addEventListener('hashchange', async () => {
 async function start() {
   initLang(await getKV('lang'));
   await loadNames();
+  initCardTip();
   renderChrome();
   state.precision = (await getKV('precision')) || 'full';
   const token = await getKV('bridgeToken');

@@ -199,5 +199,5 @@ python tools/test_server.py --port 8790     # http://127.0.0.1:8790/
 
 The scoring logic is ported from the Python version, bg_advisor; both use the same simulator and the same random seeds and give identical results.
 
-Hearthstone, its card data and card art belong to Blizzard Entertainment; this project is not affiliated with Blizzard. Card art in reports comes from [HearthstoneJSON](https://hearthstonejson.com/) and is stored in the site's `web/art/` (update it with `python tools/gen_art.py`), so browsing never contacts another site.
+Hearthstone, its card data and card art belong to Blizzard Entertainment; this project is not affiliated with Blizzard. Card art in reports comes from [HearthstoneJSON](https://hearthstonejson.com/) and is stored in the site's `web/art/` (update it with `python tools/gen_art.py`); minion effect texts (shown when you hover or tap a minion) are in `web/data/text_*.json` (update with `python tools/gen_text.py`). Browsing never contacts another site.
 This project is released under the MIT license (see [LICENSE](LICENSE)); TavernGym is MIT-licensed too.

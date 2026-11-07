@@ -99,3 +99,13 @@ background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1
 .plugin{margin-top:12px}.plugin ol{margin:8px 0;padding-left:22px}.plugin li{margin:3px 0}
 .headright{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .langbtn{padding:4px 10px;font-size:13px;min-width:52px}
+
+/* Effect text of a minion: opens on hover, focus or click. */
+.m[data-card]{cursor:help}
+.m[data-card]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#cardtip{position:absolute;z-index:50;max-width:min(300px,calc(100vw - 16px));padding:10px 12px;border-radius:10px;
+background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:13px;line-height:1.5}
+#cardtip[hidden]{display:none}
+#cardtip .tn{font-weight:700;font-size:14px}
+#cardtip .tm{color:var(--mute);font-size:12px;margin:1px 0 4px}
+#cardtip .tx b{font-weight:700}

@@ -201,5 +201,5 @@ python tools/test_server.py --port 8790     # http://127.0.0.1:8790/
 
 評分邏輯移植自 Python 版 bg_advisor，兩者用同一個模擬器和同一組隨機種子，結果一致。
 
-Hearthstone 與卡片資料、卡圖為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。報告裡的卡圖取自 [HearthstoneJSON](https://hearthstonejson.com/)，放在網站的 `web/art/`（`python tools/gen_art.py` 更新），瀏覽時不會連到其他網站。
+Hearthstone 與卡片資料、卡圖為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。報告裡的卡圖取自 [HearthstoneJSON](https://hearthstonejson.com/)，放在網站的 `web/art/`（`python tools/gen_art.py` 更新）；滑過或點一下隨從時顯示的效果文字放在 `web/data/text_*.json`（`python tools/gen_text.py` 更新）。瀏覽時不會連到其他網站。
 本專案以 MIT 授權發布（見 [LICENSE](LICENSE)）；TavernGym 也是 MIT 授權。

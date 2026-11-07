@@ -166,6 +166,9 @@ const STR = {
     'r.kw.TAUNT': '嘲諷', 'r.kw.DIVINE_SHIELD': '聖盾', 'r.kw.REBORN': '復生', 'r.kw.POISONOUS': '劇毒',
     'r.kw.VENOMOUS': '猛毒', 'r.kw.STEALTH': '潛行', 'r.kw.CLEAVE': '順劈', 'r.kw.IMMUNE': '免疫',
     'r.kw.WINDFURY': '風怒', 'r.kw.MEGA_WINDFURY': '超級風怒',
+    'tip.tier': vars => `${vars.n} 星`,
+    'tip.golden': '金色', 'tip.none': '（沒有效果文字）',
+    'race.BEAST': '野獸', 'race.MECHANICAL': '機械', 'race.UNDEAD': '亡靈', 'race.DEMON': '惡魔', 'race.PIRATE': '海盜', 'race.DRAGON': '龍', 'race.ELEMENTAL': '元素', 'race.MURLOC': '魚人', 'race.QUILBOAR': '野豬人', 'race.NAGA': '娜迦', 'race.ABERRATION': '異變', 'race.ALL': '全部種族', 'race.DRAENEI': '德萊尼',
 
     'pos.skip.no_my_minions': '你場上沒有隨從',
     'pos.skip.no_opp_minions': '對手場上沒有隨從',
@@ -395,6 +398,9 @@ const STR = {
     'r.kw.TAUNT': 'Taunt', 'r.kw.DIVINE_SHIELD': 'Divine Shield', 'r.kw.REBORN': 'Reborn', 'r.kw.POISONOUS': 'Poisonous',
     'r.kw.VENOMOUS': 'Venomous', 'r.kw.STEALTH': 'Stealth', 'r.kw.CLEAVE': 'Cleave', 'r.kw.IMMUNE': 'Immune',
     'r.kw.WINDFURY': 'Windfury', 'r.kw.MEGA_WINDFURY': 'Mega-Windfury',
+    'tip.tier': vars => `Tier ${vars.n}`,
+    'tip.golden': 'Golden', 'tip.none': '(no effect text)',
+    'race.BEAST': 'Beast', 'race.MECHANICAL': 'Mech', 'race.UNDEAD': 'Undead', 'race.DEMON': 'Demon', 'race.PIRATE': 'Pirate', 'race.DRAGON': 'Dragon', 'race.ELEMENTAL': 'Elemental', 'race.MURLOC': 'Murloc', 'race.QUILBOAR': 'Quilboar', 'race.NAGA': 'Naga', 'race.ABERRATION': 'Aberration', 'race.ALL': 'All types', 'race.DRAENEI': 'Draenei',
 
     'pos.skip.no_my_minions': 'You had no minions',
     'pos.skip.no_opp_minions': 'The opponent had no minions',

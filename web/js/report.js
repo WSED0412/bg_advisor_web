@@ -47,7 +47,7 @@ function board(ms) {
   if (!ms || !ms.length) return '<div class="note">（沒有隨從）</div>';
   return `<div class="board">${ms.map(m => {
     const kws = m.keywords.map(k => KW_ZH[k] || k).join('・');
-    return `<div class="m art${m.golden ? ' gold' : ''}" title="${esc(m.card)}"${tileAttr(m.card)}><span class="n">${esc(m.name)}</span>`
+    return `<div class="m art${m.golden ? ' gold' : ''}" data-card="${esc(m.card)}" tabindex="0"${tileAttr(m.card)}><span class="n">${esc(m.name)}</span>`
       + `<span class="st">${m.atk}/${m.hp}</span>${kws ? ` <span class="kw">${esc(kws)}</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -168,7 +168,7 @@ function board2(ms) {
   if (!ms || !ms.length) return `<div class="note">${esc(t('r.noMinions'))}</div>`;
   return `<div class="board">${ms.map(m => {
     const kws = m.keywords.map(k => t(`r.kw.${k}`)).join('・');
-    return `<div class="m art${m.golden ? ' gold' : ''}" title="${esc(m.card)}"${tileAttr(m.card)}><span class="n">${esc(card(m.card))}</span>`
+    return `<div class="m art${m.golden ? ' gold' : ''}" data-card="${esc(m.card)}" tabindex="0"${tileAttr(m.card)}><span class="n">${esc(card(m.card))}</span>`
       + `<span class="st">${m.atk}/${m.hp}</span>${kws ? ` <span class="kw">${esc(kws)}</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
