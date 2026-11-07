@@ -263,6 +263,7 @@ const raw = o => ({ n: o.n, win_a: o.win, tie: o.tie, win_b: o.loss,
 /** [combat, slot] of the taken minion: from its first fight, while it stays on the board. */
 export function pickSpans(pick, combats) {
   const chosen = pick.options.find(o => o.entity === pick.chosen);
+  if (!chosen) return [];  // the log's choice is not among the options we captured: nothing to follow
   const origin = chosen.origin || chosen.entity;
   const spans = [];
   for (const c of combats) {
