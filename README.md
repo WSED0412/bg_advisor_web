@@ -1,233 +1,203 @@
-# 英雄戰場復盤 Battleground Advisor（網頁版）
+**English** | [繁體中文](README.zh-TW.md)
 
-**網址：<https://wsed0412.github.io/bg_advisor_web/>**
+# Battleground Advisor (web version)
 
-讀取爐石戰記的 `Power.log`，用 [TavernGym](https://github.com/MCG-NJU/AutoTavern) 模擬器重建每回合的戰鬥，
-替英雄戰場的決策打分數。搭配 Hearthstone Deck Tracker 外掛使用：所有分析都在你的瀏覽器裡進行，紀錄檔不會上傳，
-紀錄檔和報告都會備份在你的電腦上。
+**Live site: <https://wsed0412.github.io/bg_advisor_web/>**
 
-- **站位**：試過所有排法，和你的排法比勝率（怎麼排都很難贏時改比受到的傷害）
-- **指向性目標**：法術、英雄技能、戰吼指定友方隨從時，每個目標都試一次
-- **磁力**：單獨下場 vs 吸附到每一隻機械
-- **出牌順序**：連續打出 2～5 張牌時，試過所有順序
-- **N 回合戰力**（參考）：買哪隻、發現哪張，換成其他選項後之後最多 3 場戰鬥的結果
-- **這局輸在哪**：受傷最多的回合，以及原因（站位、陣容太弱、運氣）
-- **升級節奏**：每回合你和對手的旅店星等、血量，和常見升級節奏對照
-- **血量走勢**：每回合戰鬥後全場八位玩家的血量折線圖，以及你的血量在存活玩家中排第幾
-- **運氣**（不計分）：戰鬥模擬勝率和實際結果的落差，以及每次發現給你的選項比平均好還是差
+Reads Hearthstone's `Power.log`, rebuilds every combat with the [TavernGym](https://github.com/MCG-NJU/AutoTavern)
+simulator, and scores your Battlegrounds decisions. It works with a Hearthstone Deck Tracker (HDT) plugin: all analysis
+runs in your browser, logs are never uploaded, and logs and reports are backed up on your own computer.
 
-分數：91 以上接近最佳、70–90 還可以更好、70 以下明顯失誤。
+- **Positioning**: tries every arrangement and compares its win rate with yours (when no arrangement can win, it compares damage taken instead)
+- **Targeted effects**: for spells, hero powers and battlecries that pick a friendly minion, every target is tried
+- **Magnetic**: played alone vs. attached to each Mech
+- **Play order**: when 2-5 cards are played in a row, every order is tried
+- **N-turn strength** (reference only): for each buy or Discover, the result of up to 3 following combats with the other options swapped in
+- **Where this game was lost**: the turns that cost the most health, and why (positioning, weak board, luck)
+- **Tavern tier pace**: your and your opponents' tavern tier and health each turn, compared with common level-up timing
+- **Health chart**: after each combat, a line chart of all eight players' health, and where your health ranks among the survivors
+- **Luck** (not scored): how far actual results differ from simulated win rates, and whether each Discover offered better or worse options than average
 
-## 使用方式
+Score: 91 and above is close to best, 70-90 could be better, below 70 is a clear mistake.
 
-網頁透過 **Hearthstone Deck Tracker（HDT）外掛**讀取爐石的紀錄檔，不需要選資料夾或上傳檔案；
-Chrome、Edge、Brave、Firefox 都能用。
+## How to use
 
-1. 下載網站上的 `plugin/BgAdvisorBridge.dll`，在檔案上按右鍵 › 內容 › 勾選「解除封鎖」。
-2. 放進 `%AppData%\HearthstoneDeckTracker\Plugins`，重新啟動 HDT，在 選項 › 追蹤器 › 外掛 啟用「Battleground Advisor」。
-3. 在外掛清單選 Battleground Advisor，按「開啟復盤網頁 Open review page」（第一次一定要從 HDT 開啟，網頁才會拿到外掛的連線密碼）；
-   瀏覽器問「存取本機網路上的裝置」時按允許。之後也可以直接打開 <https://wsed0412.github.io/bg_advisor_web/> 按「連線 HDT 外掛」。
+The page reads Hearthstone's logs through the **Hearthstone Deck Tracker (HDT) plugin**; you do not pick a folder or upload a file.
+Chrome, Edge, Brave and Firefox all work.
 
-之後每局英雄戰場結束，HDT 會自動打開這局的報告（網頁開著的話會直接在那個分頁分析）。
-外掛只在 `127.0.0.1` 上提供 `Power.log` 給這個網站讀取（其他網站、其他電腦都讀不到），不會上傳任何東西。
-爐石的 `log.config` 需開啟 `[Power]` 紀錄（HDT 會幫你設定）。
+1. Download `plugin/BgAdvisorBridge.dll` from the site, right-click it › Properties › tick "Unblock".
+2. Put it in `%AppData%\HearthstoneDeckTracker\Plugins`, restart HDT, and enable "Battleground Advisor" under Options › Tracker › Plugins.
+3. Pick Battleground Advisor in the plugin list and press "Open review page" (the first time you must open the page from HDT, so that it receives the plugin's access token);
+   allow "access to devices on the local network" when the browser asks. Afterwards you can also open <https://wsed0412.github.io/bg_advisor_web/> directly and press "Connect HDT plugin".
 
-### 備份
+After each Battlegrounds game, HDT opens that game's report automatically (if the page is already open, it analyses in that tab).
+The plugin serves `Power.log` only on `127.0.0.1` for this site (other sites and other computers cannot read it) and uploads nothing.
+Hearthstone's `log.config` must have `[Power]` logging on (HDT sets this up for you).
 
-外掛 0.3.0 起會把資料備份在 **文件\BG Advisor**：
+### Backups
 
-| 資料夾 | 內容 |
+Since plugin 0.3.0, data is backed up in **Documents\BG Advisor**:
+
+| Folder | Contents |
 |---|---|
-| `logs\` | 每個有英雄戰場對局的 `Power.log`（gzip 壓縮）。HDT 啟動時和每局結束後更新；爐石只保留最近幾次的紀錄檔，這裡會一直留著 |
-| `reports\` | 網頁做出的每一份報告（JSON）。分析完就存一份 |
-| `reports\deleted\` | 在網頁上刪掉的報告，移到這裡而不是真的刪除 |
+| `logs\` | the `Power.log` of every session with a Battlegrounds game (gzip). Updated when HDT starts and after each game; Hearthstone itself keeps only the last few logs, these stay |
+| `reports\` | every report the page makes (JSON), saved as soon as the analysis finishes |
+| `reports\deleted\` | reports deleted in the page are moved here instead of being erased |
 
-- 網頁連上外掛時，兩邊缺的報告會互相補齊：清除瀏覽器資料、換瀏覽器或換電腦（把整個資料夾複製過去）後，重新連線就會還原。
-- 網頁上的「分析備份裡所有對局」會把備份裡還沒有報告的對局全部分析一遍（模擬器或評分更新後，也可以先刪掉報告再重新分析）。
-- 想要異地備份，把 `文件\BG Advisor` 放進 OneDrive 或其他雲端硬碟同步即可。
+- When the page connects to the plugin, reports missing on either side are filled in from the other: after clearing browser data, switching browsers or moving to another computer (copy the whole folder), reconnecting restores them.
+- "Analyse all games in the backup" on the page analyses every backed-up game that has no report yet (after a simulator or scoring update you can delete the reports first and re-analyse).
+- For an off-site backup, put `Documents\BG Advisor` in OneDrive or another synced drive.
 
-### 匯入、匯出報告
+### Importing and exporting reports
 
-- 報告列表上方的「匯出全部報告」把所有報告存成一個 JSON 檔；每份報告最下面的「匯出這份報告」只存那一份。
-- 「匯入報告」讀回這種檔案（可以一次選多個），不需要外掛。用來分享給別人、搬到別的瀏覽器都可以。
-- 已經有的報告不會被覆蓋；別人的報告在列表上會標「匯入（玩家名稱）」。有連線外掛的話，匯入的報告也會存進備份。
-- 匯出時會問要不要隱藏你的 BattleTag（例如 `名字#1234`），要分享給別人時請選隱藏；對手的名稱不會被換掉。紀錄檔本身不會被匯出。
-- 匯入的檔案會先檢查格式，並把可能被當成 HTML 的字元換掉，別人給的檔案不能在網頁上執行程式。
+- "Export all reports" above the report list saves every report into one JSON file; "Export this report" at the bottom of a report saves only that one.
+- "Import reports" reads these files back (several at once is fine) and needs no plugin. Use it to share reports or move them to another browser.
+- Existing reports are never overwritten; reports from someone else are marked "Imported (player name)" in the list. With the plugin connected, imported reports are also saved to the backup.
+- Exporting asks whether to hide your BattleTag (for example `Name#1234`); choose to hide it when sharing. Opponents' names are not replaced. The log itself is never exported.
+- Imported files are checked for format and characters that could be read as HTML are escaped, so a file from someone else cannot run code in the page.
 
-### 隱私與安全
+### Privacy and security
 
-以下依照目前的程式碼（外掛 0.4.0）說明。
+As of the current code (plugin 0.4.0):
 
-**外掛讀取的檔案**
-- 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的
-  `Hearthstone_*\Power.log` 和 `Power.log`。網頁只能讀到這份清單裡的檔案，讀不到電腦上的其他檔案。
-- Windows 登錄檔裡瀏覽器的安裝路徑：對局結束後外掛用 Windows 的預設瀏覽器打開報告，只有預設瀏覽器打不開時，才改用網頁上次所在的瀏覽器。
+**Files the plugin reads**
+- `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (the install location set in HDT; `C:\Program Files (x86)\Hearthstone\Logs` if it cannot be found).
+  The page can read only the files in that listing, nothing else on the computer.
+- Browser install paths in the Windows registry: after a game the plugin opens the report in Windows' default browser, and only if that fails in the browser the page last ran in.
 
-**外掛寫入的檔案**
-- `文件\BG Advisor\logs\<工作階段>.Power.log.gz`：只備份含有英雄戰場對局的紀錄檔。
-- `文件\BG Advisor\reports\<key>.json`：網頁產生的報告；在網頁上刪除的報告會移到 `reports\deleted`，不會真的刪掉。
-- `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄網頁上次在哪個瀏覽器（預設瀏覽器打不開時才用）。
-- `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`：外掛的連線密碼（token，見下方）。
+**Files the plugin writes**
+- `Documents\BG Advisor\logs\<session>.Power.log.gz`: only logs that contain a Battlegrounds game.
+- `Documents\BG Advisor\reports\<key>.json`: reports from the page; deleted ones move to `reports\deleted`, they are not erased.
+- `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`: only which browser the page last ran in (used only if the default browser fails).
+- `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`: the plugin's access token (below).
 
-**網路**
-- 外掛只在本機 `127.0.0.1` 的 47613～47617 埠提供資料，其他電腦連不到；外掛不會主動連線到任何網站。
-- 網頁只向 GitHub Pages 下載網站本身的檔案（程式、模擬器、卡牌名稱、`plugin/version.json`），再向本機的外掛讀紀錄檔。
-  沒有分析追蹤、廣告或第三方程式；GitHub 會像其他網站一樣看到你的 IP。
-- 分析在瀏覽器裡進行，紀錄檔和報告都不會上傳。報告存在瀏覽器的 IndexedDB（只有這個網站讀得到）和上面的備份資料夾。
+**Network**
+- The plugin listens only on `127.0.0.1`, ports 47613-47617, so other computers cannot reach it, and it never connects to any site by itself.
+- The page downloads only its own files from GitHub Pages (code, simulator, card names, `plugin/version.json`) and reads logs from the local plugin.
+  There is no analytics, advertising or third-party code; GitHub sees your IP address like any web site.
+- Analysis runs in the browser; logs and reports are never uploaded. Reports are kept in the browser's IndexedDB (readable only by this site) and in the backup folder above.
 
-**報告裡有什麼**：你的 BattleTag、對手在紀錄檔裡的名稱、英雄、每回合雙方的隨從和評分。
+**What a report contains**: your BattleTag, opponents' names as they appear in the log, heroes, each turn's boards and scores.
 
-**匯出**：匯出時會問要不要隱藏你的 BattleTag；選「是」會把你的名稱（含 `#1234` 和不含的寫法）換成 `Player`，
-報告的 key 也一起改。對手的名稱不會被換掉。
+**Export**: it asks whether to hide your BattleTag; if you say yes, your name (with and without `#1234`) is replaced by `Player`, also in the report key. Opponents' names are kept.
 
-**誰能存取外掛**
-- **連線密碼（token）**：外掛第一次啟動時用密碼學安全的亂數產生 32 bytes（43 個字元），存在 `BgAdvisorToken.txt`，之後沿用。
-  外掛打開網頁時把它放在網址 `#/bridge/<埠>/<token>`；網頁把它存進瀏覽器（IndexedDB），並立刻從網址上拿掉。
-- 讀紀錄檔、讀寫或刪除備份的報告，都要帶 `Authorization: Bearer <token>`，外掛用常數時間比較，不符回 401。
-  沒有 token 時 `/status` 只回答外掛的名稱和版本，不含任何路徑；網頁會請你從 HDT 開啟一次。
-  所以本機其他程式開的網頁（任何埠的 localhost）就算來源被允許，也讀不到紀錄檔、改不了備份。
-- 另外仍然只接受 `Host` 是 `127.0.0.1` 或 `localhost` 的請求（防 DNS rebinding），瀏覽器裡也只有這個網站和本機網頁能讀取回應，
-  其他網站的請求直接拒絕。
-- **換密碼**：HDT 的外掛選單有「Battleground Advisor：重設網頁連線 Reset web connection」，會產生新的 token 並用新網址打開網頁；
-  舊的網頁之後會被拒絕，需要從 HDT 重新開啟。也可以刪掉 `BgAdvisorToken.txt` 再重開 HDT。
-- **限制**：token 也會留在瀏覽器的網站資料和瀏覽紀錄（網址的 # 部分）裡；能讀到這些的本機程式本來就能直接讀紀錄檔。
-  網站的網址 `wsed0412.github.io` 和同一個 GitHub 帳號的其他 GitHub Pages 網站共用同一個來源，那些網站的程式也能讀到這個網站存的 token。
-- 外掛 0.3.0 以前沒有 token：本機任何網頁都能讀紀錄檔、改備份，請更新。
+**Who can use the plugin**
+- **Token**: on first start the plugin makes a token from 32 bytes of cryptographically secure random data (43 characters), stores it in `BgAdvisorToken.txt` and reuses it.
+  When the plugin opens the page it puts the token in the address `#/bridge/<port>/<token>`; the page saves it in the browser (IndexedDB) and removes it from the address at once.
+- Reading logs and reading, writing or deleting backed-up reports all need `Authorization: Bearer <token>`; the plugin compares it in constant time and answers 401 otherwise.
+  Without a token `/status` returns only the plugin's name and version, with no paths, and the page asks you to open it from HDT once.
+  So a page served by another program on this computer (localhost on any port) cannot read the logs or change the backup, even if its origin were allowed.
+- Requests are still accepted only when `Host` is `127.0.0.1` or `localhost` (against DNS rebinding), and in the browser only this site and local pages may read responses; requests from other sites are refused.
+- **Resetting the token**: HDT's plugin menu has "Reset web connection", which makes a new token and opens the page with the new address;
+  old pages are refused from then on and must be reopened from HDT. You can also delete `BgAdvisorToken.txt` and restart HDT.
+- **Limits**: the token also stays in the browser's site data and history (the `#` part of the address); a local program that can read those could read the log directly anyway.
+  The site `wsed0412.github.io` shares one origin with the same GitHub account's other GitHub Pages sites, and their code can read the token this site stores.
+- Plugins before 0.4.0 have no token: any local web page could read the logs and change the backup. Please update.
 
-**檢查下載的外掛**：`plugin/version.json` 裡的 `sha256` 是網站上 DLL 的 SHA-256（由 `plugin\build.ps1 -Publish`
-產生，CI 會檢查兩者一致）。下載後在 PowerShell 執行：
+**Checking the downloaded plugin**: `sha256` in `plugin/version.json` is the SHA-256 of the DLL on the site (written by `plugin\build.ps1 -Publish`; CI checks the two match).
+After downloading, run in PowerShell:
 
 ```powershell
 (Get-FileHash "$env:USERPROFILE\Downloads\BgAdvisorBridge.dll" -Algorithm SHA256).Hash
 ```
 
-和網頁安裝說明裡顯示的 SHA-256 比對（不分大小寫）。DLL 沒有程式碼簽章，所以 Windows 會要求「解除封鎖」，
-防毒軟體也可能誤報；可以從原始碼自己編譯（見下一節），建置是可重現的（`/deterministic`），結果應和網站上的 DLL 位元組相同。
+and compare it with the SHA-256 shown in the page's install instructions (case-insensitive). The DLL is not code-signed, so Windows asks you to unblock it
+and antivirus software may flag it. You can build it from source (next section); the build is deterministic (`/deterministic`), so the result should be byte-identical to the DLL on the site.
 
-#### Privacy and security (English)
+### Updating and building the plugin
 
-As of the current code (plugin 0.4.0):
+Build it yourself: `powershell -ExecutionPolicy Bypass -File plugin\build.ps1 -Install` (needs Visual Studio Build Tools).
 
-- **Read by the plugin**: `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (only files in
-  that listing can be served), and browser install paths in the Windows registry (reports open in Windows' default browser; only if that fails,
-  in the browser the page last ran in).
-- **Written by the plugin**: `Documents\BG Advisor\logs\<session>.Power.log.gz` (only sessions with a Battlegrounds
-  game), `Documents\BG Advisor\reports\<key>.json` (reports from the page; deleted ones move to `reports\deleted`),
-  `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt` (the browser the page last ran in) and
-  `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt` (the plugin's token, below).
-- **Network**: the plugin listens on `127.0.0.1` ports 47613-47617 only and connects to nothing. The page downloads
-  only its own files from GitHub Pages and reads logs from the local plugin. No analytics, ads or third-party code;
-  GitHub sees your IP like any web site. Analysis runs in the browser; logs and reports are never uploaded.
-- **Reports** contain your BattleTag, opponents' names as seen in the log, heroes, boards and scores. Exporting asks
-  whether to hide your BattleTag (replaced by `Player`, also in the report key); opponents' names are kept.
-- **Access to the plugin**: on first start the plugin makes a token (32 random bytes from a cryptographic
-  generator, 43 characters), keeps it in `BgAdvisorToken.txt`, and passes it only in the address it opens
-  (`#/bridge/<port>/<token>`); the page stores it in IndexedDB and removes it from the address. Reading logs and
-  reading, writing or deleting backed-up reports need `Authorization: Bearer <token>` (compared in constant time;
-  401 otherwise); without it `/status` only gives the plugin's name and version. So a page served by another local
-  program cannot read the logs or change the backup. `Host` must still be `127.0.0.1`/`localhost`, and only this site
-  and local pages may read responses. HDT's plugin menu has "Reset web connection" to make a new token (or delete
-  the file and restart HDT). The token also stays in the browser's site data and history; `wsed0412.github.io` is
-  shared with the account's other GitHub Pages sites. Plugins before 0.4.0 have no token: please update.
-- **Checking the DLL**: compare `(Get-FileHash <file> -Algorithm SHA256).Hash` with `sha256` in
-  `plugin/version.json` (shown on the page; CI checks it matches the published DLL). The DLL is not code-signed, so
-  Windows asks you to unblock it and antivirus may flag it; the build is deterministic, so building it yourself
-  should give the same bytes.
+The plugin rarely needs updating: card data, scoring and the interface all live on the site, so refresh the page after a site update. When a new plugin version does ship,
+the page compares it with `web/plugin/version.json` on connect; an old version shows an update notice, and a version below `min` pauses automatic analysis and asks you to update.
+To publish a new plugin: change `Version` in `BridgeServer.cs`, then run `plugin\build.ps1 -Publish` (add `-MinCompatible <new version>` for incompatible changes).
 
-### 外掛更新與編譯
+## What affects the score and what does not
 
-自己編譯：`powershell -ExecutionPolicy Bypass -File plugin\build.ps1 -Install`（需要 Visual Studio Build Tools）。
+The **positioning average**, **other decisions average** and **clear mistakes** at the top of a report come only from these two kinds of decisions:
 
-外掛很少需要更新：卡片資料、評分和介面都在網站上，網站更新後重新整理頁面即可。外掛真的出新版時，
-網頁連線時會比對 `web/plugin/version.json`，舊版會看到更新提示；低於 `min` 的版本會暫停自動分析並請你更新。
-發布新版外掛：改 `BridgeServer.cs` 的 `Version`，再執行 `plugin\build.ps1 -Publish`（不相容的改動加上 `-MinCompatible 新版本`）。
-
-## 哪些東西會影響分數、哪些不會
-
-報告上方的**站位平均**、**其他決策平均**和**明顯失誤**，只由下面兩類決策算出：
-
-| 列入分數 | 怎麼評 |
+| Scored | How it is judged |
 |---|---|
-| 站位 | 試過所有排法，和你的排法比勝率 |
-| 目標、磁力、出牌順序 | 試過每個選項，和你的選擇比勝率 |
+| Positioning | every arrangement is tried and its win rate compared with yours |
+| Targets, magnetic, play order | every option is tried and its win rate compared with your choice |
 
-怎麼排都很難贏（最佳勝率低於 5%）的時候，改比「受到的傷害」。
+When no choice can win (best win rate below 5%), damage taken is compared instead.
 
-### 會顯示，但不列入平均和明顯失誤
+### Shown, but not in the averages or clear mistakes
 
-- **N 回合戰力（買哪隻、發現哪張）**：在這隻隨從之後最多 3 場戰鬥裡，把它換成其他選項（同樣位置、到那時為止同樣的加成），把幾場的結果加起來比較。同一隻隨從每回合的複本會依紀錄檔裡的連結追蹤。不含戰吼效果，對手也固定是你實際遇到的陣容，所以只供參考，報告上標示「參考，不列入平均」。
-- **這局輸在哪**：輸掉的戰鬥依受到的傷害排序，列出前 3 場和原因：換個站位常常能贏（最佳排法勝率高 10 個百分點以上）、怎麼排都很難贏（最佳勝率低於 30%）、運氣不好（你的勝率 50% 以上）或勢均力敵。
-- **升級節奏**：每回合你和對手的旅店星等、戰鬥前血量，對照常見節奏（第 2 回合 2 星、第 5 回合 3 星、第 7 回合 4 星、第 9 回合 5 星、第 11 回合 6 星）。這是經驗法則，低於節奏只會標紅提醒，不扣分。
-- **血量走勢**：每回合戰鬥後，從紀錄檔裡每位玩家的排行榜英雄讀出全場八位玩家的血量（含護甲），畫成折線圖：粗線是你、灰線是其他玩家、× 是被淘汰的回合；每條線尾端標著英雄，和你對戰過的玩家附上名稱（Power.log 裡對手的名稱有時會沿用上一位對手的，所以只在整局前後一致時才標）；滑鼠移到圖上可以看那回合每個人的血量。「看數字」展開後有逐回合的血量表和「你的血量排名（存活者中）」。
-- **運氣**（不計分）：和決策分開看，只回答「這局運氣好不好」。
-  - 戰鬥：每場用你實際的陣容算模擬勝率，加總成「預期贏幾場、預期受到多少傷害」，和實際結果比較；模擬勝率 50% 以上卻輸掉（或 50% 以下卻贏）的回合會列出來。
-  - 發現：用這局的種族和選項的星等推算這次發現可能出現哪些隨從，把每一種都放進你拿的那隻隨從的位置打它上場的第一場戰鬥，再看給你的三個選項在所有可能的三選一組合裡排第幾（50% 是平均）。只比戰力，不算戰吼、經濟效果和旅店加成；選什麼都不影響戰鬥的發現不列入。
-- **不影響這場戰鬥的決策**：每個選項打出來的戰鬥結果都一樣（例如兩隻隨從誰先下都沒差），顯示「不影響這場戰鬥」，不給分。
-- **只有一種排法的站位**：例如場上只有一隻隨從，或所有隨從都一樣。
+- **N-turn strength (which minion to buy, which card to Discover)**: over up to 3 combats after that minion, it is swapped for the other options (same position, same buffs up to that point) and the results of those combats are added up. Copies of the same minion in later turns are followed through the links in the log. Battlecry effects are not included and the opponents stay the ones you actually met, so this is for reference only and is labelled "reference, not in the average".
+- **Where this game was lost**: lost combats ranked by damage taken, with the top 3 and the reason: a different arrangement often wins (the best arrangement's win rate is 10 points or more higher), nothing could win (best win rate below 30%), bad luck (your win rate was 50% or more) or an even fight.
+- **Tavern tier pace**: your and your opponents' tavern tier and pre-combat health each turn against common timing (tier 2 on turn 2, tier 3 on turn 5, tier 4 on turn 7, tier 5 on turn 9, tier 6 on turn 11). This is a rule of thumb; being behind only turns the number red and costs no points.
+- **Health chart**: after each combat, the health (with armor) of all eight players is read from each player's leaderboard hero in the log and drawn as lines: your line is thick, others are grey, × marks the turn someone was eliminated; each line ends with its hero, and players you fought are labelled with their name (opponent names in `Power.log` are sometimes carried over from the previous opponent, so names are shown only when consistent across the whole game); hover the chart to see everyone's health that turn. "Show numbers" expands a per-turn health table and "your health rank (among survivors)".
+- **Luck** (not scored): kept apart from decisions; it only answers "was this game lucky?".
+  - Combat: each combat is simulated with your actual board, the win rates add up to "expected wins and expected damage taken" which are compared with the actual result; turns where a 50%+ simulated win was lost (or a sub-50% one won) are listed.
+  - Discover: from this game's minion types and the options' tiers it works out which minions the Discover could have shown, puts each one in the place of the minion you took, plays its first combat, and ranks the three options you were offered among all possible triples (50% is average). It compares strength only, not battlecries, economy effects or tavern buffs; Discovers whose choice does not affect combat are left out.
+- **Decisions that do not change this combat**: when every option plays out to the same result (for example, which of two minions is played first), the report says "does not affect this combat" and gives no score.
+- **Positioning with only one arrangement**: for example one minion on the board, or all minions identical.
 
-### 會略過，列在「沒有評分的決策」
+### Skipped, listed under "Unscored decisions"
 
-- 效果是拿牌的指向性牌（例如主廚精選：選的是之後拿到哪張牌，不影響這場戰鬥）。
-- 只有一個合法選項的目標或磁力。
-- 同一串連續出牌裡，打出了同一串剛拿到的牌（模擬器裡拿到的牌會和你的不一樣）。
-- 超過 5 張的連續出牌（排列太多）、包含英雄技能的出牌順序。
-- 買到或發現的隨從之後沒有上場戰鬥（賣掉或拿去合成）。
-- 模擬器不認得的卡，或無法在模擬器重現你的選擇。
+- Targeted cards whose effect is to get a card (for example Chef's Choice: you choose which card you get later, which does not change this combat).
+- Targets or magnetic choices with only one legal option.
+- A run of plays that plays cards just obtained in that same run (the simulator's obtained cards differ from yours).
+- Runs of more than 5 plays (too many orders) and play orders that include a hero power.
+- A minion bought or discovered that never fought later (sold, or used to combine).
+- Cards the simulator does not know, or choices the simulator cannot reproduce.
 
-### 模擬裡重建了哪些東西
+### What the simulation rebuilds
 
-每場戰鬥都從紀錄檔重建，雙方都包含：
+Each combat is rebuilt from the log, for both sides:
 
-- **英雄和實際持有的英雄技能**（中途換過的技能也會換上）
-- **飾品、任務獎勵**
-- **隨從**：紀錄檔裡的實際數值和關鍵字（光環會校正，不重複計算）
-- **在招募階段施放、等到戰鬥開始才生效的法術**（例如諾茲多姆的子嗣）
-- **部分「本局累積」數值**：血寶石加成、亡靈攻擊加成、甲蟲加成、加速機兵加成、本局打出的元素數、本局施放的法術數
-- **本局的隨從種族**：從這局出現過的隨從推算，戰鬥中「召喚隨機隨從」會從正確的種族裡抽
+- **Hero and the hero power actually held** (powers swapped mid-game are swapped in)
+- **Trinkets and quest rewards**
+- **Minions**: actual stats and keywords from the log (auras are corrected, not counted twice)
+- **Spells cast in the recruit phase that take effect when combat starts** (for example Nozdormu's whelps)
+- **Some "this game" counters**: Blood Gem bonus, Undead Attack bonus, Beetle bonus, Volumizer bonus, Elementals played this game, spells cast this game
+- **Minion types in this game**: worked out from the minions seen this game, so "summon a random minion" in combat draws from the right types
 
-還沒有重建的：永恆騎士加成、屠殺給亡靈的生命等其他累積數值（紀錄檔裡的標籤還沒對應出來）、飾品和英雄技能自己的累積層數、本局神祇與黑暗悖論的形態（紀錄檔裡沒看到這些資料）。模擬器不認得的英雄技能、飾品、法術會在報告裡列出提醒。
+Not rebuilt yet: the Eternal Knight bonus, health given to Undead by Slaughter and other counters (their tags in the log are not mapped yet), the stack counts of trinkets and hero powers, and this game's god and Dark Paradox forms (no data for these was seen in the log). Hero powers, trinkets and spells the simulator does not know are listed as warnings in the report.
 
-### 隨機效果怎麼處理
+### How randomness is handled
 
-- **戰鬥中的隨機**（亡語召喚、隨機目標…）：每個選項模擬數百到數千場，每場不同亂數。
-- **招募階段的隨機**（「隨機一隻友方隨從 +2/+2」…）：目標、磁力、出牌順序會在模擬器重打一次招募動作，每個選項重打 20 次、每次不同亂數，每次再打 50 場戰鬥（快速模式次數較少）。所有選項共用同一組亂數。
-- **模擬雜訊**：站位的每個候選模擬 4000 場（快速模式 500 場）。所有排法雖然從同一組亂數開始，但只要有一次攻擊不同，之後的亂數就對不上，所以抵消不了運氣。兩種勢均力敵的排法，勝率差大約有 ±1.1 個百分點的雜訊（一個標準差），換算成站位分數約 ±3 分（快速模式約 ±9 分）。最佳排法是從多個候選裡挑最高的，勝率會略為偏高，所以你的分數容易被略為低估。
-- **站位初篩**：排法超過 200 種時，先每種模擬 200 場，留下前 24 種和你的排法。用 15 個真實盤面實測，有 3 個盤面沒留到真正的最佳排法，但差距最多 0.39 個百分點。
-- **發現**：模擬器的選項裡有你實際拿到的牌就選它；沒有的話，把你實際拿到的牌換進手牌。
-- 站位和戰力評分用的是紀錄檔裡實際帶進戰鬥的陣容，招募階段的隨機已經是真實結果。
+- **Random effects in combat** (deathrattle summons, random targets, ...): each option is simulated hundreds to thousands of times, each with different random numbers.
+- **Random effects in the recruit phase** ("give a random friendly minion +2/+2", ...): targets, magnetic and play order replay the recruit action in the simulator 20 times per option, with different random numbers each time, and fight 50 combats each time (fewer in quick mode). All options share the same set of random numbers.
+- **Simulation noise**: each positioning candidate is simulated 4000 times (500 in quick mode). All arrangements start from the same random numbers, but once one attack differs the numbers no longer line up, so luck does not cancel out. Two evenly matched arrangements show roughly ±1.1 percentage points of noise in win rate (one standard deviation), about ±3 positioning score points (about ±9 in quick mode). The best arrangement is the highest of several candidates, so its win rate is slightly overestimated and your score tends to be slightly underestimated.
+- **Positioning pre-screen**: when there are more than 200 arrangements, each is first simulated 200 times and the top 24 plus yours are kept. Tested on 15 real boards, 3 boards lost the true best arrangement in the screen, by at most 0.39 percentage points.
+- **Discover**: if the simulator's options include the card you really got, that one is picked; if not, the card you really got is put into the hand.
+- Positioning and strength scores use the board that actually went into combat in the log, so recruit-phase randomness is already the real outcome.
 
-### 完全沒有評
+### Not rated at all
 
-刷新、凍結、賣隨從、英雄選擇、飾品選擇、發現法術或飾品，以及升級時機的精確好壞（只有上面的節奏對照）。這些需要預測之後好幾回合的局勢，目前的「模擬實際發生的戰鬥」方法量不到。
+Refreshing, freezing, selling minions, hero choice, trinket choice, discovering spells or trinkets, and the exact quality of level-up timing (only the pace comparison above). These need a forecast of the next several turns, which the current method of "simulate the combats that actually happened" cannot measure.
 
-### 不改分數，但會提醒
+### Does not change the score, but warns
 
-- **實際結果在模擬中的機率**偏低（< 10%）時，代表那回合的模擬可能不準。
-- 紀錄檔裡有**數值和模擬器不同的隨從**（改版或熱修）時，會列出來。
-- **快速模式**的分數誤差比較大。
+- When the **probability of the actual result in the simulation** is low (< 10%), the simulation of that turn may be inaccurate.
+- When the log has **minions whose stats differ from the simulator's** (patches or hotfixes), they are listed.
+- **Quick mode** scores have larger error.
 
-## 架構
+## Architecture
 
-| 位置 | 內容 |
+| Location | Contents |
 |---|---|
-| `engine/` | TavernGym 的 WebAssembly 介面（純 C ABI，不需 wasm-bindgen） |
-| `web/js/powerlog.js`、`bglog.js` | 解析 Power.log、擷取戰鬥陣容與出牌 |
-| `web/js/scene.js`、`simcore.js`、`sim.js` | 重建局面、平行模擬（每個 Web Worker 一份模擬器） |
-| `web/js/scoring.js`、`positioning.js`、`decisions.js`、`luck.js`、`review.js` | 評分、運氣 |
-| `web/js/app.js`、`report.js`、`store.js`、`share.js` | 介面（連線外掛、同步備份）、報告、IndexedDB、匯入匯出 |
-| `plugin/` | HDT 外掛（C#）：本機橋接伺服器，對局結束時打開網頁；備份紀錄檔和報告（`Backup.cs`） |
+| `engine/` | WebAssembly interface to TavernGym (plain C ABI, no wasm-bindgen) |
+| `web/js/powerlog.js`, `bglog.js` | parse Power.log, extract combat boards and plays |
+| `web/js/scene.js`, `simcore.js`, `sim.js` | rebuild the position, parallel simulation (one simulator per Web Worker) |
+| `web/js/scoring.js`, `positioning.js`, `decisions.js`, `luck.js`, `review.js` | scoring, luck |
+| `web/js/app.js`, `report.js`, `store.js`, `share.js` | interface (plugin connection, backup sync), reports, IndexedDB, import and export |
+| `plugin/` | HDT plugin (C#): local bridge server that opens the page when a game ends; backs up logs and reports (`Backup.cs`) |
 
-推上 `main` 後，GitHub Actions 會編譯 WebAssembly 並部署到 GitHub Pages。
+Pushing to `main` makes GitHub Actions build the WebAssembly and deploy to GitHub Pages.
 
-本機開發：
+Local development:
 
 ```sh
-cd engine && cargo build --release          # 需要 rustup target add wasm32-unknown-unknown
+cd engine && cargo build --release          # needs: rustup target add wasm32-unknown-unknown
 cp target/wasm32-unknown-unknown/release/taverngym_wasm.wasm ../web/engine/taverngym.wasm
 python tools/test_server.py --port 8790     # http://127.0.0.1:8790/
 ```
 
-評分邏輯移植自 Python 版 bg_advisor，兩者用同一個模擬器和同一組隨機種子，結果一致。
+The scoring logic is ported from the Python version, bg_advisor; both use the same simulator and the same random seeds and give identical results.
 
-Hearthstone 與卡片資料、卡圖為 Blizzard Entertainment 所有；本專案與 Blizzard 無關。報告裡的卡圖取自 [HearthstoneJSON](https://hearthstonejson.com/)，放在網站的 `web/art/`（`python tools/gen_art.py` 更新），瀏覽時不會連到其他網站。
-本專案以 MIT 授權發布（見 [LICENSE](LICENSE)）；TavernGym 也是 MIT 授權。
+Hearthstone, its card data and card art belong to Blizzard Entertainment; this project is not affiliated with Blizzard. Card art in reports comes from [HearthstoneJSON](https://hearthstonejson.com/) and is stored in the site's `web/art/` (update it with `python tools/gen_art.py`), so browsing never contacts another site.
+This project is released under the MIT license (see [LICENSE](LICENSE)); TavernGym is MIT-licensed too.
