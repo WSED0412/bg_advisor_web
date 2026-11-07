@@ -58,7 +58,7 @@ Since plugin 0.3.0, data is backed up in **Documents\BG Advisor**:
 
 ### Privacy and security
 
-As of the current code (plugin 0.4.0):
+As of the current code (plugin 0.4.2):
 
 **Files the plugin reads**
 - `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (the install location set in HDT; `C:\Program Files (x86)\Hearthstone\Logs` if it cannot be found).

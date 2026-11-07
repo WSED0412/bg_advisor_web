@@ -37,5 +37,5 @@ export const allGames = async () => {
   return games.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 };
 export const gameKeys = () => tx('games', 'readonly', s => s.getAllKeys());
-export const getKV = key => tx('kv', 'readonly', s => s.get(key));
+export const getKV = key => tx('kv', 'readonly', s => s.get(key)).catch(() => undefined);
 export const setKV = (key, value) => tx('kv', 'readwrite', s => s.put(value, key));

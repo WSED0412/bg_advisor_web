@@ -50,11 +50,27 @@ export class SimPool {
   }
 
   _fail(w, e) {
+    const msg = `模擬失敗：${(e && e.message) || e}`;
     const id = this.busy.get(w);
     this.busy.delete(w);
+    // The crashed worker leaves the pool for good; the others keep taking queued chunks.
+    w.terminate();
+    this.workers = this.workers.filter(x => x !== w);
+    this.idle = this.idle.filter(x => x !== w);
     const p = this.waiting.get(id);
     this.waiting.delete(id);
-    if (p) p.reject(new Error(`模擬失敗：${e.message || e}`));
+    if (p) p.reject(new Error(msg));
+    if (!this.workers.length) {
+      // Nobody is left to run the rest: fail it now instead of waiting forever.
+      for (const job of this.queue) {
+        const q = this.waiting.get(job.chunkId);
+        this.waiting.delete(job.chunkId);
+        if (q) q.reject(new Error(msg));
+      }
+      this.queue = [];
+    } else {
+      this._pump();
+    }
   }
 
   _chunk(baseJson, jobs, n) {

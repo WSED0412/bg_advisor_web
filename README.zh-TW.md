@@ -58,7 +58,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 ### 隱私與安全
 
-以下依照目前的程式碼（外掛 0.4.0）說明。
+以下依照目前的程式碼（外掛 0.4.2）說明。
 
 **外掛讀取的檔案**
 - 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的

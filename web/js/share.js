@@ -35,6 +35,13 @@ function validReport(r) {
     && (r.summary === undefined || (r.summary && typeof r.summary === 'object'));
 }
 
+/** A cleaned copy of one report from an untrusted source (the plugin's backup, say), or null if it is not a report. */
+export function sanitizeReport(r) {
+  if (!validReport(r)) return null;
+  const c = clean(r);
+  return validReport(c) ? c : null;
+}
+
 /** {reports: [cleaned reports], bad: number of entries that are not reports}. Throws on bad JSON. */
 export function readExport(text) {
   const data = JSON.parse(text);

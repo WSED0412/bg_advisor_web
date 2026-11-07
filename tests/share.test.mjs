@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { anonymize } from '../web/js/share.js';
+import { anonymize, sanitizeReport } from '../web/js/share.js';
 
 test('anonymize removes the BattleTag everywhere and keeps other players', () => {
   const r = { key: '12_34_56_7_Ed_1234', player: 'Ed#1234',
@@ -31,4 +31,12 @@ test('anonymize replaces a CJK name right next to other CJK characters', () => {
 test('anonymize handles names with regex characters and non-Latin names', () => {
   const r = { key: 'k', player: '小明.+#5678', rounds: [{ round: 1, text: '小明.+ 對上 小明X' }] };
   assert.equal(anonymize(r).rounds[0].text, 'Player 對上 小明X');
+});
+
+test('sanitizeReport rejects backups that are not reports and keeps good ones', () => {
+  assert.equal(sanitizeReport(null), null);
+  assert.equal(sanitizeReport({ key: '12_34_56_7_Ed_1234' }), null);          // no rounds
+  assert.equal(sanitizeReport({ key: '../x', rounds: [] }), null);            // bad key
+  const ok = sanitizeReport({ key: '12_34_56_7_Ed_1234', rounds: [{ round: 1 }] });
+  assert.ok(ok && ok.rounds.length === 1);
 });

@@ -5,7 +5,7 @@
 import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
 import { esc, heroIcon, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
-import { anonymize, downloadReports, readExport, today } from './share.js';
+import { anonymize, downloadReports, readExport, sanitizeReport, today } from './share.js';
 
 const $ = sel => document.querySelector(sel);
 // Test harness: ?log=...&report=/report also mirrors status and errors to POST /log.
@@ -206,7 +206,8 @@ async function syncReports() {
     if (local.has(key)) continue;
     try {
       const res = await (await bridgeFetch(`/report?key=${encodeURIComponent(key)}`)).json();
-      if (res && res.key === key) { await saveGame(res); restored += 1; }
+      const ok = res && res.key === key ? sanitizeReport(res) : null;
+      if (ok) { await saveGame(ok); restored += 1; } else tlog(`restore of ${key} skipped: not a valid report`);
     } catch (e) {
       tlog(`restore of ${key} failed: ${e.message}`);
     }
@@ -514,7 +515,7 @@ async function renderList() {
     const misses = (s.misplays || []).length;
     return `<a class="g" href="#/game/${encodeURIComponent(g.key)}">`
       + `<div class="place ${placeCls(g.place)}">${g.place || '?'}</div>`
-      + `<div>${g.format >= 2 ? heroIcon(g.hero) : ''}<b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: g.rounds.length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}`
+      + `<div>${g.format >= 2 ? heroIcon(g.hero) : ''}<b>${esc(heroName(g))}</b> <span class="mute small">${esc(g.date)}・${esc(t('list.rounds', { n: (g.rounds || []).length }))}${g.complete === false ? esc(t('list.incomplete')) : ''}`
       + `${g.imported ? esc(t('list.imported', { player: g.player || '?' })) : ''}</span>`
       + `<div class="small">${esc(t('list.misses', { n: misses }))}</div></div>`
       + `<div class="right small">${esc(t('list.positioning'))} ${scoreHtml(s.positioning_avg)}　${esc(t('list.decisions'))} ${scoreHtml(s.decisions_avg)}</div></a>`;
@@ -623,6 +624,19 @@ window.addEventListener('hashchange', async () => {
 // ---------------------------------------------------------------- start
 
 (async function main() {
+  try {
+    await start();
+  } catch (e) {
+    // Without this a failure here (storage blocked by the browser, say) leaves a blank page.
+    console.error(e);
+    const box = document.querySelector('#error') || document.body.appendChild(document.createElement('div'));
+    box.className = 'warn err';
+    box.hidden = false;
+    box.textContent = `Could not start: ${(e && e.message) || e}. Browser storage may be blocked (private mode?). / 無法啟動：${(e && e.message) || e}。瀏覽器的儲存空間可能被封鎖（無痕模式？）`;
+  }
+})();
+
+async function start() {
   initLang(await getKV('lang'));
   await loadNames();
   renderChrome();
@@ -651,4 +665,4 @@ window.addEventListener('hashchange', async () => {
       await fetch(q.get('report'), { method: 'POST', body: JSON.stringify(await allGames()) });
     }
   }
-})();
+}
