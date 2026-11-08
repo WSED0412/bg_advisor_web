@@ -72,9 +72,10 @@ class FakeBridge(SimpleHTTPRequestHandler):
     """The plugin's HTTP API (see plugin/src/BridgeServer.cs), for page tests without HDT."""
     protocol_version = "HTTP/1.1"
     token = ""
-    version = "0.4.0"
+    version = "0.4.3"
     logs: Path = WEB / "testdata"
     reports: dict[str, bytes] = {}
+    deleted: dict[str, bytes] = {}   # reports deleted by a page (the plugin's reports\deleted)
     game_ends = 0
 
     def log_message(self, fmt, *args):
@@ -150,7 +151,8 @@ class FakeBridge(SimpleHTTPRequestHandler):
             p = self._listing().get(q.get("source", ""))
             return self._send(200, p.read_bytes(), "text/plain; charset=utf-8") if p else self._send(404)
         if url.path == "/reports":
-            return self._send(200, json.dumps(sorted(self.reports)).encode())
+            keys = self.deleted if q.get("deleted") == "1" else self.reports
+            return self._send(200, json.dumps(sorted(keys)).encode())
         if url.path == "/report" and q.get("key") in self.reports:
             return self._send(200, self.reports[q["key"]])
         self._send(404)
@@ -165,8 +167,12 @@ class FakeBridge(SimpleHTTPRequestHandler):
             return self._send(401, b'{"error":"token"}')
         key = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query)).get("key", "")
         if self.command == "DELETE":
-            return self._send(200, json.dumps({"deleted": self.reports.pop(key, None) is not None}).encode())
+            gone = self.reports.pop(key, None)
+            if gone is not None:
+                self.deleted[key] = gone
+            return self._send(200, json.dumps({"deleted": gone is not None}).encode())
         self.reports[key] = body
+        self.deleted.pop(key, None)  # made again: no longer deleted
         self._send(200, b'{"saved":true}')
 
     do_POST = _write

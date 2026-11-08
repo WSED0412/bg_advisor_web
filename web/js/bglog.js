@@ -80,6 +80,10 @@ class Reader {
     this.seen = [];              // [player id, name] pairs met in combat
     this.lastLearned = ['', 0];  // [name, player id] last paired
     this.openPlay = null;
+    // Hero damage taken in this combat, added up from my hero's DAMAGE and ARMOR changes, so Armor
+    // gained during the fight cannot hide a loss.
+    this.myHero = 0;
+    this.myHit = 0;
     this.seq = 0;
     this.run = 0;
     this.lastWasPlay = false;
@@ -165,6 +169,13 @@ class Reader {
     return this.log.inZone(ps[0].controller, 'PLAY', 'MINION').map(minionOf);
   }
 
+  myTier() {
+    const ps = this.players();
+    if (!ps) return 0;
+    const me = ps[0];
+    return me.get('PLAYER_TECH_LEVEL') || this.log.entity(me.get('HERO_ENTITY')).get('PLAYER_TECH_LEVEL');
+  }
+
   _tag(log, e, tag, old, nw) {
     if (tag === 'HERO_ENTITY' && log.refByName && /^\d+$/.test(nw) && e.id !== log.localPlayer) {
       this.learnName(log.lastName.get(e.id) || '', parseInt(nw, 10));
@@ -183,6 +194,12 @@ class Reader {
       if (ps && e.id === ps[0].get('HERO_ENTITY') && /^\d+$/.test(nw)) this.g.place = parseInt(nw, 10);
       return;
     }
+    if ((tag === 'DAMAGE' || tag === 'ARMOR') && e.id === this.myHero && this.pending) {
+      const before = toInt(old), after = toInt(nw);
+      const hit = tag === 'DAMAGE' ? after - before : before - after;
+      if (hit > 0) this.myHit += hit;
+      return;
+    }
     if (e.id !== log.gameEntity) return;
     if (tag === 'STATE' && nw === 'COMPLETE') { this.g.complete = true; return; }
     if (tag === 'STEP' && nw === 'MAIN_START' && this.turn % 2 === 0 && this.turn > 0) {
@@ -195,6 +212,8 @@ class Reader {
       this.g.combats.push(combat);
       this.oppHero = this.boardHero(opp.get('HERO_ENTITY'));
       this.pending = [combat, this.heroLife(me), this.life(this.oppHero)];
+      this.myHero = me.get('HERO_ENTITY');
+      this.myHit = 0;
       this.snapOpen = true;
     } else if (tag === 'TURN') {
       this.snapOpen = false;
@@ -272,7 +291,10 @@ class Reader {
     const ps = this.players();
     if (!ps) return;
     const [me] = ps;
-    const lost = myLife - this.heroLife(me);
+    // Life lost, or the damage events seen if Armor gained in the fight hides part of it.
+    const lost = Math.max(myLife - this.heroLife(me), this.myHit);
+    this.myHero = 0;
+    this.myHit = 0;
     // The opponent's leaderboard hero, kept when the combat began (by now, the next turn, the
     // other player is Bob).
     const dealt = oppLife - this.life(this.oppHero || 0);
@@ -285,7 +307,8 @@ class Reader {
   buy(log, bob, target) {
     const shop = log.inZone(bob.controller, 'PLAY', 'MINION').map(minionOf);
     if (shop.some(m => m.entity === target) && shop.length >= 2) {
-      this.g.picks.push({ round: Math.floor(this.turn / 2) + 1, kind: 'buy', source: '', chosen: target, options: shop });
+      this.g.picks.push({ round: Math.floor(this.turn / 2) + 1, kind: 'buy', source: '', chosen: target, options: shop,
+                          tier: this.myTier() });
     }
   }
 
@@ -303,7 +326,7 @@ class Reader {
     if (ents.some(e => e.cardtype !== 'MINION')) return;
     const source = c.source !== null ? baseId(log.entity(c.source).cardId) : '';
     this.g.picks.push({ round: Math.floor(this.turn / 2) + 1, kind: 'discover', source, chosen: c.chosen[0],
-                        options: ents.map(minionOf) });
+                        options: ents.map(minionOf), tier: this.myTier() });
   }
 
   /** Retake a combat snapshot that missed the opponent's hero or warband. */
@@ -385,6 +408,8 @@ class Reader {
   }
 }
 
+const toInt = v => (/^-?\d+$/.test(v) ? parseInt(v, 10) : 0);
+
 // ------------------------------------------------------------- card numbers vs the engine
 
 const RE_CREATE = /^\s*FULL_ENTITY - Creating ID=\d+ CardID=(\S+)/;
@@ -420,11 +445,14 @@ export function cardChanges(lines) {
     const c = cardOf(cid);
     if (!c || c.kind !== 'minion') continue;
     const engine = [c.atk, c.hp, c.tier];
-    // A copy created without its tier (summoned in combat...) counts as the engine's tier.
+    // A copy created without its tier (summoned in combat...) has the tier its other copies show;
+    // with none or several shown, the engine's (so a tier-only change still shows).
+    const shown = new Set([...raw.keys()].map(k => Number(k.split(',')[2])).filter(t => t));
+    const fill = shown.size === 1 ? [...shown][0] : engine[2];
     const cnt = new Map();
     for (const [k, n] of raw) {
       const [a, h, t] = k.split(',').map(Number);
-      const key = [a, h, t === 0 ? engine[2] : t].join(',');
+      const key = [a, h, t === 0 ? fill : t].join(',');
       cnt.set(key, (cnt.get(key) || 0) + n);
     }
     if (cnt.has(engine.join(',')) || cnt.size !== 1) continue;
@@ -537,6 +565,8 @@ export function mergeReconnects(games) {
       prev.place = g.place || prev.place;
       prev.hero = g.hero || prev.hero;
       prev.standings.push(...g.standings);
+      // A reconnect replays the whole state, so it usually saw more of the lobby's types.
+      if ((g.lobby || []).length > (prev.lobby || []).length) prev.lobby = g.lobby;
       const known = new Set(prev.cardChanges.map(c => c.card));
       prev.cardChanges.push(...g.cardChanges.filter(c => !known.has(c.card)));
     } else {

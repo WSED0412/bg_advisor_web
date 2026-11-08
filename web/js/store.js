@@ -12,9 +12,17 @@ function open() {
         db.createObjectStore('games', { keyPath: 'key' });
         db.createObjectStore('kv');
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => { db.close(); dbp = null; };  // let a newer page upgrade it
+        db.onclose = () => { dbp = null; };                     // closed by the browser: open again
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error('IndexedDB is blocked by another tab of this page'));
     });
+    // A failure (private window, a disk hiccup, another tab) is not kept: the next call tries again.
+    dbp.catch(() => { dbp = null; });
   }
   return dbp;
 }
@@ -26,6 +34,8 @@ async function tx(store, mode, fn) {
     const req = fn(t.objectStore(store));
     t.oncomplete = () => resolve(req ? req.result : undefined);
     t.onerror = () => reject(t.error);
+    // Some failures (storage full, eviction) only abort the transaction.
+    t.onabort = () => reject(t.error || new Error('IndexedDB transaction aborted'));
   });
 }
 
@@ -39,3 +49,18 @@ export const allGames = async () => {
 export const gameKeys = () => tx('games', 'readonly', s => s.getAllKeys());
 export const getKV = key => tx('kv', 'readonly', s => s.get(key)).catch(() => undefined);
 export const setKV = (key, value) => tx('kv', 'readwrite', s => s.put(value, key));
+
+// Reports the player deleted: not brought back by a sync or reviewed again automatically.
+const DELETED = 'deletedKeys';
+export async function deletedKeys() {
+  const v = await getKV(DELETED);
+  return new Set(Array.isArray(v) ? v : []);
+}
+export async function markDeleted(key) {
+  const keys = await deletedKeys();
+  if (!keys.has(key)) await setKV(DELETED, [...keys, key]);
+}
+export async function unmarkDeleted(key) {
+  const keys = await deletedKeys();
+  if (keys.delete(key)) await setKV(DELETED, [...keys]);
+}

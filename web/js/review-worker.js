@@ -27,6 +27,8 @@ function init() {
       initCards(engine.catalog(), tw, skins);
       sim = await SimPool.create(module);
     })();
+    // A failed download or compile is not kept: the next review tries again.
+    ready.catch(() => { ready = null; });
   }
   return ready;
 }
@@ -69,19 +71,20 @@ async function review(msg) {
   const known = new Set(msg.known || []);
   let games = readGames(files).filter(g => g.combats.length && (!msg.onlyComplete || g.complete)
     && g.source !== msg.skipSource);
-  games = games.filter(g => !known.has(gameKey(g)));
+  const dayOfGame = g => days.get(g.source.split(' + ')[0]) || '';
+  games = games.filter(g => !known.has(gameKey(g, dayOfGame(g))));
   if (msg.limit) games = games.slice(-msg.limit);
-  self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g), hero: g.hero })) });
+  self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g, dayOfGame(g)), hero: g.hero })) });
 
   const prec = PRECISION[msg.precision] || PRECISION.full;
   let reviewed = 0;
   for (const g of games) {
     if (engine.broken) engine = await Engine.create(module);
-    const key = gameKey(g);
+    const key = gameKey(g, dayOfGame(g));
     const t0 = performance.now();
     const result = await reviewGame(engine, sim, g, prec, (done, total, round) =>
       self.postMessage({ type: 'progress', key, hero: g.hero, done, total, round }),
-      days.get(g.source.split(' + ')[0]) || '');
+      dayOfGame(g));
     result.seconds = Math.round((performance.now() - t0) / 1000);
     result.precision = msg.precision || 'full';
     self.postMessage({ type: 'result', result });

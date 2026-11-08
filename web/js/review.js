@@ -17,24 +17,9 @@ export const PRECISION = {
   quick: { pos: 500, screen: 100, dec: 300 },
 };
 
-const firstSource = g => g.source.split(' + ')[0];
-const folderOf = src => {
-  const parts = src.split(/[\\/]/);
-  return parts.length > 1 ? parts[parts.length - 2] : parts[0].replace(/\.[^.]*$/, '');
-};
+import { gameKey, gameDate } from './gamekey.js';
 
-/** Stable id of a game: its start time (to 0.1 microsecond) and the player, so the same game
- *  gets the same id whether it was read from Logs or from the plugin's backup. */
-export function gameKey(g) {
-  return `${g.start}_${g.player}`.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
-}
-
-/** 'YYYY-MM-DD HH:MM' from the session folder name (Hearthstone_2026_10_20_02_12_05). */
-export function gameDate(g, fallbackDay = '') {
-  const m = /(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})/.exec(folderOf(firstSource(g)));
-  const day = m ? `${m[1]}-${m[2]}-${m[3]}` : fallbackDay;
-  return `${day} ${g.start.slice(0, 5)}`.trim();
-}
+export { gameKey, gameDate };
 
 const minions = side => side.board.map(m => ({
   card: m.card, name: nameOf(m.card), atk: m.atk, hp: m.hp, keywords: m.keywords, golden: m.card.endsWith('_G'),
@@ -53,7 +38,7 @@ function describeChange(c) {
  */
 export async function reviewGame(engine, sim, game, prec = PRECISION.full, progress = () => {}, fallbackDay = '') {
   const result = {
-    key: gameKey(game), date: gameDate(game, fallbackDay), player: game.player, build: game.build,
+    key: gameKey(game, fallbackDay), date: gameDate(game, fallbackDay), player: game.player, build: game.build,
     hero: game.hero, hero_name: nameOf(game.hero), place: game.place, complete: game.complete,
     source: game.source, rounds: [], card_changes: game.cardChanges.map(describeChange),
     format: 2, changes: game.cardChanges.map(c => ({ card: c.card, engine: c.engine, client: c.client })),

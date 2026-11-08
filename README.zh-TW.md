@@ -58,7 +58,7 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 ### 隱私與安全
 
-以下依照目前的程式碼（外掛 0.4.2）說明。
+以下依照目前的程式碼（外掛 0.4.3）說明。
 
 **外掛讀取的檔案**
 - 爐石的 `Logs` 資料夾（HDT 設定的爐石安裝位置，找不到時用 `C:\Program Files (x86)\Hearthstone\Logs`）裡的
@@ -67,7 +67,9 @@ Chrome、Edge、Brave、Firefox 都能用。
 
 **外掛寫入的檔案**
 - `文件\BG Advisor\logs\<工作階段>.Power.log.gz`：只備份含有英雄戰場對局的紀錄檔。
+  沒有英雄戰場的紀錄檔會留下一個空的 `<工作階段>.nobg`，檔案沒變就不再重讀。
 - `文件\BG Advisor\reports\<key>.json`：網頁產生的報告；在網頁上刪除的報告會移到 `reports\deleted`，不會真的刪掉。
+  連到外掛的其他瀏覽器也會跟著刪掉它們的那份，被刪掉的對局也不會再被自動分析。
 - `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`：只記錄網頁上次在哪個瀏覽器（預設瀏覽器打不開時才用）。
 - `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`：外掛的連線密碼（token，見下方）。
 
@@ -80,7 +82,8 @@ Chrome、Edge、Brave、Firefox 都能用。
 **報告裡有什麼**：你的 BattleTag、對手在紀錄檔裡的名稱、英雄、每回合雙方的隨從和評分。
 
 **匯出**：匯出時會問要不要隱藏你的 BattleTag；選「是」會把你的名稱（含 `#1234` 和不含的寫法）換成 `Player`，
-報告的 key 也一起改。對手的名稱不會被換掉。
+對手的名稱不會被換掉。報告的 key（對局的編號）只有對局的日期和開始時間（`20261020_021802_6826019`），
+不含任何名稱；Python 版對同一局也給一樣的 key。
 
 **誰能存取外掛**
 - **連線密碼（token）**：外掛第一次啟動時用密碼學安全的亂數產生 32 bytes（43 個字元），存在 `BgAdvisorToken.txt`，之後沿用。

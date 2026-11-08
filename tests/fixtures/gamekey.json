@@ -1,0 +1,18 @@
+{
+  "keys": [
+    {"source": "C:\\Program Files (x86)\\Hearthstone\\Logs\\Hearthstone_2026_10_20_02_12_05\\Power.log", "start": "02:18:02.6826019", "fallback": "", "key": "20261020_021802_6826019", "date": "2026-10-20 02:18"},
+    {"source": "Logs/Hearthstone_2026_11_07_23_47_34/Power.log", "start": "02:43:38.7558555", "fallback": "", "key": "20261108_024338_7558555", "date": "2026-11-08 02:43"},
+    {"source": "Logs/Hearthstone_2026_11_07_23_47_34/Power.log", "start": "23:50:01.0000001", "fallback": "", "key": "20261107_235001_0000001", "date": "2026-11-07 23:50"},
+    {"source": "Logs/Hearthstone_2026_12_31_22_00_00/Power.log + Logs/Hearthstone_2027_01_01_00_30_00/Power.log", "start": "00:10:00.1234567", "fallback": "", "key": "20270101_001000_1234567", "date": "2027-01-01 00:10"},
+    {"source": "testdata/game3/Power.log", "start": "04:39:48.8047747", "fallback": "2026-11-03", "key": "20261103_043948_8047747", "date": "2026-11-03 04:39"},
+    {"source": "Power.log", "start": "04:39:48.8047747", "fallback": "", "key": "00000000_043948_8047747", "date": "04:39"}
+  ],
+  "migrate": [
+    {"report": {"key": "02_18_02_6826019_EdwardEd_3249", "date": "2026-10-20 02:18", "source": "Logs/Hearthstone_2026_10_20_02_12_05/Power.log"}, "key": "20261020_021802_6826019", "date": "2026-10-20 02:18"},
+    {"report": {"key": "02_43_38_7558555_player", "date": "2026-11-07 02:43", "source": "Logs/Hearthstone_2026_11_07_23_47_34/Power.log"}, "key": "20261108_024338_7558555", "date": "2026-11-08 02:43"},
+    {"report": {"key": "Hearthstone_2026_10_20_02_12_05_02_18_02_6826019", "date": "2026-10-20 02:18", "source": "C:\\Logs\\Hearthstone_2026_10_20_02_12_05\\Power.log"}, "key": "20261020_021802_6826019", "date": "2026-10-20 02:18"},
+    {"report": {"key": "game3_04_39_48_8047747", "date": "2026-11-03 04:39", "source": "testdata/game3/Power.log"}, "key": "20261103_043948_8047747", "date": "2026-11-03 04:39"},
+    {"report": {"key": "20261020_021802_6826019", "date": "2026-10-20 02:18", "source": "x"}, "key": null, "date": null},
+    {"report": {"key": "something_else", "date": "", "source": ""}, "key": null, "date": null}
+  ]
+}
