@@ -5,6 +5,7 @@
 import { allGames, deleteGame, deletedKeys, gameKeys, getGame, getKV, markDeleted, saveGame, setKV,
   unmarkDeleted } from './store.js';
 import { esc, heroIcon, heroName, placeCls, renderGame, scoreHtml } from './report.js';
+import { NEW_KEY_RE, migrateReport } from './gamekey.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
 import { initCardTip } from './cardtip.js';
 import { anonymize, downloadReports, readExport, sanitizeReport, today } from './share.js';
@@ -211,12 +212,45 @@ async function backupReport(res) {
   }
 }
 
+/** Reports kept here under an older id get the new one (gamekey.js), once. */
+async function migrateLocalKeys() {
+  for (const r of await allGames()) {
+    const m = migrateReport(r);
+    if (!m) continue;
+    if (!(await getGame(m.key))) await saveGame(m);  // the same game may be here under its new id
+    await deleteGame(r.key);
+  }
+}
+
+/** The backup's reports under an older id: saved again under the new one, the old one deleted. */
+async function migrateRemoteKeys(remote) {
+  for (const key of [...remote]) {
+    if (NEW_KEY_RE.test(key)) continue;
+    try {
+      const res = await (await bridgeFetch(`/report?key=${encodeURIComponent(key)}`)).json();
+      const ok = res && res.key === key ? sanitizeReport(res) : null;
+      const m = ok && migrateReport(ok);
+      if (!m) continue;
+      if (!remote.has(m.key)) {
+        await bridgeFetch(`/report?key=${encodeURIComponent(m.key)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) });
+        remote.add(m.key);
+      }
+      await bridgeFetch(`/report?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
+      remote.delete(key);
+    } catch (e) {
+      tlog(`migration of ${key} in the backup failed: ${e.message}`);
+    }
+  }
+}
+
 /** Copy reports missing on either side: this browser <-> the plugin's backup. A report deleted
  * on one side (here, or in another browser through a plugin that lists deleted reports) is deleted
  * on the other instead of being copied back. */
 async function syncReports() {
   const b = state.bridge;
   const remote = new Set(await (await bridgeFetch('/reports')).json());
+  await migrateRemoteKeys(remote);
   const remoteDeleted = cmpVersion(b.version, DELETED_VERSION) >= 0
     ? new Set(await (await bridgeFetch('/reports?deleted=1')).json()) : new Set();
   const deleted = await deletedKeys();
@@ -447,7 +481,8 @@ async function importFiles(files) {
       continue;
     }
     bad += got.bad;
-    for (const r of got.reports) {
+    for (const old of got.reports) {
+      const r = migrateReport(old) || old;  // an export made before the ids changed
       if (known.has(r.key)) { had += 1; continue; }  // never overwrite a report already here
       if (!r.imported) r.imported = new Date().toISOString();
       await saveGame(r);
@@ -685,6 +720,7 @@ async function start() {
   initCardTip();
   renderChrome();
   state.precision = (await getKV('precision')) || 'full';
+  await migrateLocalKeys();
   const token = await getKV('bridgeToken');
   if (TOKEN_RE.test(token || '')) state.bridgeToken = token;
   if (!(await handleBridgeRoute())) {

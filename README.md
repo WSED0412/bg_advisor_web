@@ -81,7 +81,8 @@ As of the current code (plugin 0.4.3):
 
 **What a report contains**: your BattleTag, opponents' names as they appear in the log, heroes, each turn's boards and scores.
 
-**Export**: it asks whether to hide your BattleTag; if you say yes, your name (with and without `#1234`) is replaced by `Player`, also in the report key. Opponents' names are kept.
+**Export**: it asks whether to hide your BattleTag; if you say yes, your name (with and without `#1234`) is replaced by `Player`. Opponents' names are kept.
+The report key (the game's id) holds only the day and start time of the game (`20261020_021802_6826019`), no names; the Python version gives the same game the same key.
 
 **Who can use the plugin**
 - **Token**: on first start the plugin makes a token from 32 bytes of cryptographically secure random data (43 characters), stores it in `BgAdvisorToken.txt` and reuses it.
