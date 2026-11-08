@@ -58,7 +58,7 @@ Since plugin 0.3.0, data is backed up in **Documents\BG Advisor**:
 
 ### Privacy and security
 
-As of the current code (plugin 0.4.2):
+As of the current code (plugin 0.4.3):
 
 **Files the plugin reads**
 - `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (the install location set in HDT; `C:\Program Files (x86)\Hearthstone\Logs` if it cannot be found).
@@ -67,7 +67,9 @@ As of the current code (plugin 0.4.2):
 
 **Files the plugin writes**
 - `Documents\BG Advisor\logs\<session>.Power.log.gz`: only logs that contain a Battlegrounds game.
+  A log without one leaves an empty `<session>.nobg` there, so it is not read again until it changes.
 - `Documents\BG Advisor\reports\<key>.json`: reports from the page; deleted ones move to `reports\deleted`, they are not erased.
+  Other browsers connected to the plugin then delete their copy too, and a deleted game is not analyzed again automatically.
 - `%AppData%\HearthstoneDeckTracker\BgAdvisor.txt`: only which browser the page last ran in (used only if the default browser fails).
 - `%AppData%\HearthstoneDeckTracker\BgAdvisorToken.txt`: the plugin's access token (below).
 

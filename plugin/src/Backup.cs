@@ -4,6 +4,8 @@
 //   logs\<session>.Power.log.gz   Power.log of every session with a Battlegrounds game (gzip)
 //   reports\<key>.json            every report the web page made (sent by the page)
 //   reports\deleted\<key>.json    reports deleted on the page (kept, not erased)
+//   logs\<session>.nobg           a session already read that had no Battlegrounds game (its
+//                                  time is the log's, so the log is read again once it changes)
 
 using System;
 using System.Collections.Generic;
@@ -85,6 +87,8 @@ namespace BgAdvisorBridge
                     if (!src.Exists) continue;
                     var dst = new FileInfo(Path.Combine(LogsDir, d.Name + ".Power.log.gz"));
                     if (dst.Exists && dst.LastWriteTimeUtc == src.LastWriteTimeUtc) continue;
+                    var nobg = new FileInfo(Path.Combine(LogsDir, d.Name + ".nobg"));
+                    if (nobg.Exists && nobg.LastWriteTimeUtc == src.LastWriteTimeUtc) continue;
                     try
                     {
                         CopyIfBattlegrounds(src, dst);
@@ -120,14 +124,18 @@ namespace BgAdvisorBridge
                     }
                 }
             }
+            var nobg = Path.Combine(LogsDir, src.Directory.Name + ".nobg");
             if (!bg)
             {
                 File.Delete(tmp);
+                // Remember it, so this log is not read and compressed again until it changes.
+                File.WriteAllBytes(nobg, new byte[0]);
+                File.SetLastWriteTimeUtc(nobg, stamp);
                 return;
             }
-            if (dst.Exists) File.Delete(dst.FullName);
-            File.Move(tmp, dst.FullName);
+            MoveOver(tmp, dst.FullName);
             File.SetLastWriteTimeUtc(dst.FullName, stamp);
+            if (File.Exists(nobg)) File.Delete(nobg);
             _log("backed up " + src.Directory.Name);
         }
 
@@ -135,11 +143,31 @@ namespace BgAdvisorBridge
 
         public static bool ValidKey(string key) { return key != null && KeyRe.IsMatch(key); }
 
+        string DeletedDir { get { return Path.Combine(ReportsDir, "deleted"); } }
+
         public List<string> ReportKeys()
         {
-            if (!Directory.Exists(ReportsDir)) return new List<string>();
-            return new DirectoryInfo(ReportsDir).GetFiles("*.json")
+            return KeysIn(ReportsDir);
+        }
+
+        /// <summary>Reports deleted on a page (in reports\deleted), so other browsers delete them too.</summary>
+        public List<string> DeletedReportKeys()
+        {
+            return KeysIn(DeletedDir);
+        }
+
+        static List<string> KeysIn(string dir)
+        {
+            if (!Directory.Exists(dir)) return new List<string>();
+            return new DirectoryInfo(dir).GetFiles("*.json")
                 .Select(f => Path.GetFileNameWithoutExtension(f.Name)).Where(ValidKey).ToList();
+        }
+
+        /// <summary>Put tmp in place of path in one step when path exists (no moment without it).</summary>
+        static void MoveOver(string tmp, string path)
+        {
+            if (File.Exists(path)) File.Replace(tmp, path, null);
+            else File.Move(tmp, path);
         }
 
         public byte[] ReadReport(string key)
@@ -157,8 +185,10 @@ namespace BgAdvisorBridge
                 Directory.CreateDirectory(ReportsDir);
                 var p = Path.Combine(ReportsDir, key + ".json");
                 File.WriteAllBytes(p + ".tmp", json);
-                if (File.Exists(p)) File.Delete(p);
-                File.Move(p + ".tmp", p);
+                MoveOver(p + ".tmp", p);
+                // Made again (reviewed again, imported): no longer a deleted report.
+                var del = Path.Combine(DeletedDir, key + ".json");
+                if (File.Exists(del)) File.Delete(del);
             }
         }
 
@@ -170,9 +200,8 @@ namespace BgAdvisorBridge
             {
                 var p = Path.Combine(ReportsDir, key + ".json");
                 if (!File.Exists(p)) return false;
-                var del = Path.Combine(ReportsDir, "deleted");
-                Directory.CreateDirectory(del);
-                var to = Path.Combine(del, key + ".json");
+                Directory.CreateDirectory(DeletedDir);
+                var to = Path.Combine(DeletedDir, key + ".json");
                 if (File.Exists(to)) File.Delete(to);
                 File.Move(p, to);
                 return true;

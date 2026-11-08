@@ -2,7 +2,8 @@
 // reviewed in the background and its report shows up in the list. The plugin also keeps a
 // backup of the logs and of every report (Documents\BG Advisor).
 
-import { allGames, deleteGame, gameKeys, getGame, getKV, saveGame, setKV } from './store.js';
+import { allGames, deleteGame, deletedKeys, gameKeys, getGame, getKV, markDeleted, saveGame, setKV,
+  unmarkDeleted } from './store.js';
 import { esc, heroIcon, heroName, placeCls, renderGame, scoreHtml } from './report.js';
 import { card, getLang, initLang, loadNames, setLang, t } from './i18n.js';
 import { initCardTip } from './cardtip.js';
@@ -39,8 +40,16 @@ const errorText = () => (!state.error ? '' : state.error.text || t(state.error.k
 let worker = null;
 let pending = Promise.resolve();
 
-function review(files, { limit = 0, onlyComplete = true, context = false } = {}) {
-  pending = pending.then(() => new Promise(async (resolve) => {
+// Other tabs of this page: one reviews at a time (the others then find its reports and skip those
+// games), and each tells the others when the reports change.
+const withReviewLock = fn => (navigator.locks ? navigator.locks.request('bg_advisor_review', fn) : fn());
+const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('bg_advisor') : null;
+const announce = () => { if (channel) channel.postMessage({ type: 'reports' }); };
+if (channel) channel.onmessage = ev => { if (ev.data && ev.data.type === 'reports' && route().page === 'list') render(); };
+
+/** skipDeleted: automatic reviews leave the games whose reports the player deleted alone. */
+function review(files, { limit = 0, onlyComplete = true, context = false, skipDeleted = false } = {}) {
+  pending = pending.then(() => withReviewLock(() => new Promise(async (resolve) => {
     if (!worker) worker = new Worker(new URL('./review-worker.js', import.meta.url), { type: 'module' });
     state.busy = true;
     state.notice = '';
@@ -58,7 +67,9 @@ function review(files, { limit = 0, onlyComplete = true, context = false } = {})
         renderStatus();
       } else if (m.type === 'result') {
         await saveGame(m.result);
+        await unmarkDeleted(m.result.key);
         backupReport(m.result);
+        announce();
         state.progress = null;
         onNewReport(m.result);
       } else if (m.type === 'done' || m.type === 'error') {
@@ -82,8 +93,10 @@ function review(files, { limit = 0, onlyComplete = true, context = false } = {})
     // context: the first file is only there for a game reconnected across files; games that lie
     // wholly inside it were (or will be) reviewed with the file before it.
     const skipSource = context && files.length > 1 ? files[0].source : null;
-    worker.postMessage({ type: 'review', files, known: await gameKeys(), precision: state.precision, limit, onlyComplete, skipSource });
-  }));
+    const known = await gameKeys();
+    if (skipDeleted) known.push(...await deletedKeys());
+    worker.postMessage({ type: 'review', files, known, precision: state.precision, limit, onlyComplete, skipSource });
+  })));
   return pending;
 }
 
@@ -117,6 +130,7 @@ const BRIDGE_PORTS = [47613, 47614, 47615, 47616, 47617];
 const PLUGIN_URL = 'plugin/BgAdvisorBridge.dll';
 const BACKUP_VERSION = '0.3.0';  // first plugin with the backup
 const TOKEN_VERSION = '0.4.0';   // first plugin that wants the token
+const DELETED_VERSION = '0.4.3'; // first plugin that lists deleted reports (/reports?deleted=1)
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 /** -1, 0 or 1, comparing dotted versions ("0.1.0" < "0.10.0"). */
@@ -197,14 +211,27 @@ async function backupReport(res) {
   }
 }
 
-/** Copy reports missing on either side: this browser <-> the plugin's backup. */
+/** Copy reports missing on either side: this browser <-> the plugin's backup. A report deleted
+ * on one side (here, or in another browser through a plugin that lists deleted reports) is deleted
+ * on the other instead of being copied back. */
 async function syncReports() {
   const b = state.bridge;
   const remote = new Set(await (await bridgeFetch('/reports')).json());
+  const remoteDeleted = cmpVersion(b.version, DELETED_VERSION) >= 0
+    ? new Set(await (await bridgeFetch('/reports?deleted=1')).json()) : new Set();
+  const deleted = await deletedKeys();
   const local = new Set(await gameKeys());
-  let restored = 0;
+  let restored = 0, removed = 0;
   for (const key of remote) {
     if (local.has(key)) continue;
+    if (deleted.has(key)) {  // deleted here while the plugin was away
+      try {
+        await bridgeFetch(`/report?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
+      } catch (e) {
+        tlog(`delete of ${key} in the backup failed: ${e.message}`);
+      }
+      continue;
+    }
     try {
       const res = await (await bridgeFetch(`/report?key=${encodeURIComponent(key)}`)).json();
       const ok = res && res.key === key ? sanitizeReport(res) : null;
@@ -214,10 +241,18 @@ async function syncReports() {
     }
   }
   for (const key of local) {
-    if (!remote.has(key)) await backupReport(await getGame(key));
+    if (remote.has(key)) continue;
+    if (remoteDeleted.has(key)) {  // deleted in another browser
+      await deleteGame(key);
+      await markDeleted(key);
+      removed += 1;
+    } else {
+      await backupReport(await getGame(key));
+    }
   }
   b.restored = restored;
-  if (restored && route().page === 'list') render();
+  if (restored || removed) announce();
+  if ((restored || removed) && route().page === 'list') render();
 }
 
 async function startBridge(port) {
@@ -266,6 +301,9 @@ async function bridgeTick() {
     }
     if (b.tooOld) return;  // this page may not understand an old plugin: ask for the update first
     if (b.needToken) return;  // not paired: the page must be opened from HDT once
+    // The count of game ends went down: HDT was restarted. Start over as on first contact, or
+    // the games until the count passes the old one would not be reviewed.
+    if (b.ends !== null && st.gameEnds < b.ends) b.ends = null;
     if (b.ends === null) {
       // First contact: bring the reports in line with the backup, then review recent finished
       // games that still have no report.
@@ -319,7 +357,7 @@ async function bridgeReview(limit) {
   const files = [];
   // The log before may hold the start of a reconnected game (one more when backfilling).
   for (const f of list.slice(limit ? -3 : -2)) files.push(await fetchLog(f));
-  if (files.length) review(files, { limit, context: true });
+  if (files.length) review(files, { limit, context: true, skipDeleted: true });
 }
 
 /** "Analyze every backed-up game": each session with the one before it (reconnects). */
@@ -413,11 +451,13 @@ async function importFiles(files) {
       if (known.has(r.key)) { had += 1; continue; }  // never overwrite a report already here
       if (!r.imported) r.imported = new Date().toISOString();
       await saveGame(r);
+      await unmarkDeleted(r.key);
       backupReport(r);
       known.add(r.key);
       added += 1;
     }
   }
+  if (added) announce();
   state.error = badFiles.length ? { text: t('err.importFile', { names: badFiles.join('、') }) } : null;
   state.notice = t('notice.imported', { n: added }) + (had ? t('notice.importHad', { n: had }) : '')
     + (bad ? t('notice.importBad', { n: bad }) : '');
@@ -573,6 +613,8 @@ document.addEventListener('click', async (ev) => {
     ev.preventDefault();
     if (confirm(t(canBackup() ? 'confirm.deleteBackup' : 'confirm.delete'))) {
       await deleteGame(a.dataset.delete);
+      await markDeleted(a.dataset.delete);
+      announce();
       if (canBackup()) {
         try {
           await bridgeFetch(`/report?key=${encodeURIComponent(a.dataset.delete)}`, { method: 'DELETE' });

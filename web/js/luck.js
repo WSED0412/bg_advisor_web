@@ -20,6 +20,8 @@ const TYPE_WORDS = [['Beast', 'BEAST'], ['Demon', 'DEMON'], ['Dragon', 'DRAGON']
   ['Mech', 'MECHANICAL'], ['Murloc', 'MURLOC'], ['Naga', 'NAGA'], ['Pirate', 'PIRATE'],
   ['Quilboar', 'QUILBOAR'], ['Undead', 'UNDEAD']];
 const FLAT = 0.02;  // options closer than this make the Discover not matter for the fight
+// A Discover that names its tier ("a Tier 4 minion", "of your Tier") keeps the offered tiers.
+const TIER_WORDS = /\bTier\b/;
 
 const resultScore = w => ({ me: 1.0, tie: 0.5, opp: 0.0 })[w];
 const stripGolden = id => (id.endsWith('_G') ? id.slice(0, -2) : id);
@@ -52,13 +54,15 @@ export function discoverPool(pick, lobby) {
   const offered = pick.options.map(o => card(stripGolden(o.card)));
   if (offered.some(c => !isPoolMinion(c))) return null;  // not plain Tavern minions
   let tiers = new Set(offered.map(c => c.tier));
-  if (tiers.size > 1) {  // not a one-tier Discover: anything up to the highest tier offered
-    const top = Math.max(...tiers);
-    tiers = new Set(Array.from({ length: top }, (_, i) => i + 1));
-  }
   let types = new Set(lobby);
   const src = pick.source ? ((card(pick.source) || {}).text || '') : '';
   const only = new Set(TYPE_WORDS.filter(([w]) => src.includes(w)).map(([, t]) => t));
+  const upTo = top => new Set(Array.from({ length: top }, (_, i) => i + 1));
+  if (only.size === 1 && pick.tier && Math.max(...tiers) <= pick.tier && !TIER_WORDS.test(src)) {
+    tiers = upTo(pick.tier);  // "Discover a Beast": a minion of that type of your Tavern tier or lower
+  } else if (tiers.size > 1) {  // not a one-tier Discover: anything up to the highest tier offered
+    tiers = upTo(Math.max(...tiers));
+  }
   if (only.size === 1) types = only;
   const pool = [];
   for (const c of allCards()) {

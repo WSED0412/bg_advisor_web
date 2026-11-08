@@ -9,6 +9,7 @@
 //                          (all=1: every session, also those only left in the backup)
 //   GET /log?source=...    the raw text of one of those files (from Logs, or else the backup)
 //   GET /reports           ["key", ...]  reports kept in the backup
+//   GET /reports?deleted=1 ["key", ...]  reports deleted on a page (the backup's "deleted" folder)
 //   GET /report?key=...    one of them (JSON)
 //   POST /report?key=...   keep a report (JSON body) in the backup
 //   DELETE /report?key=... move a report to the backup's "deleted" folder
@@ -42,7 +43,7 @@ namespace BgAdvisorBridge
         public const string SiteUrl = "https://wsed0412.github.io/bg_advisor_web/";
         public const int FirstPort = 47613;
         public const int LastPort = 47617;
-        public const string Version = "0.4.2";
+        public const string Version = "0.4.3";
         const int RecentSessions = 3;
 
         const int MaxReportBytes = 32 * 1024 * 1024;
@@ -242,11 +243,18 @@ namespace BgAdvisorBridge
             if (r.Method == "OPTIONS") { Send(s, 204, null, new byte[0], origin, true); return true; }
             if (r.Method == "POST" || r.Method == "DELETE")
             {
+                // Writes only from the web app itself, never from a request without an Origin, and only
+                // with the token. Both are checked before the body is kept in memory: a refused request
+                // costs none (an unauthorized body is read and dropped, so the page still gets its 401).
+                if (!AllowedOrigin(origin)) { Send(s, 403, "text/plain", Bytes("origin required"), null, false, false); return false; }
+                if (!Authorized(r))
+                {
+                    bool drained = DrainBody(s, r);
+                    Unauthorized(s, origin, drained);
+                    return drained;
+                }
                 byte[] body;
                 if (!ReadBody(s, r, out body)) { Send(s, 413, "text/plain", Bytes("body too large"), origin, false, false); return false; }
-                // Writes only from the web app itself, never from a request without an Origin.
-                if (!AllowedOrigin(origin)) { Send(s, 403, "text/plain", Bytes("origin required"), null, false, false); return false; }
-                if (!Authorized(r)) { Unauthorized(s, origin); return true; }
                 return HandleWrite(s, r, origin, body);
             }
             if (r.Method != "GET") { Send(s, 405, "text/plain", Bytes("method not allowed"), origin, false, false); return false; }
@@ -293,37 +301,41 @@ namespace BgAdvisorBridge
                 string source = QueryValue(r.Query, "source");
                 var hit = Listing(true).FirstOrDefault(f => f.Item1 == source);
                 if (hit == null) { Send(s, 404, "text/plain", Bytes("not a recent Power.log"), origin); return true; }
-                byte[] data;
-                if (hit.Item2.Name.EndsWith(".gz", StringComparison.Ordinal))
-                {
-                    // Only in the backup: already gzip, so send it as is (or unpacked).
-                    data = ReadBackup(hit.Item2, gzip);
-                    Send(s, 200, "text/plain; charset=utf-8", data, origin, false, true, gzip);
-                    _log("sent " + source + " from the backup (" + data.Length + " bytes)");
-                    return true;
-                }
-                // Hearthstone may be writing the file: share everything.
+                // Streamed in chunks: a log can be 100 MB, so it is never held in memory whole.
+                // Hearthstone may be writing the file, and the backup may replace a .gz: share everything.
+                bool fromBackup = hit.Item2.Name.EndsWith(".gz", StringComparison.Ordinal);
+                long sent;
                 using (var fs = new FileStream(hit.Item2.FullName, FileMode.Open, FileAccess.Read,
                                                FileShare.ReadWrite | FileShare.Delete))
-                using (var ms = new MemoryStream())
                 {
-                    if (gzip)
+                    sent = SendStream(s, "text/plain; charset=utf-8", origin, gzip, body =>
                     {
-                        // Logs are plain text: gzip makes them about ten times smaller.
-                        using (var gz = new GZipStream(ms, CompressionLevel.Fastest, true)) fs.CopyTo(gz);
-                    }
-                    else
-                    {
-                        fs.CopyTo(ms);
-                    }
-                    data = ms.ToArray();
+                        if (fromBackup && gzip)
+                        {
+                            fs.CopyTo(body);  // already gzip: send it as is
+                        }
+                        else if (fromBackup)
+                        {
+                            using (var z = new GZipStream(fs, CompressionMode.Decompress, true)) z.CopyTo(body);
+                        }
+                        else if (gzip)
+                        {
+                            // Logs are plain text: gzip makes them about ten times smaller.
+                            using (var z = new GZipStream(body, CompressionLevel.Fastest, true)) fs.CopyTo(z);
+                        }
+                        else
+                        {
+                            fs.CopyTo(body);
+                        }
+                    });
                 }
-                Send(s, 200, "text/plain; charset=utf-8", data, origin, false, true, gzip);
-                _log("sent " + source + " (" + data.Length + " bytes" + (gzip ? ", gzip" : "") + ")");
+                _log("sent " + source + (fromBackup ? " from the backup" : "") + " (" + sent + " bytes"
+                     + (gzip ? ", gzip" : "") + ")");
             }
             else if (r.Path == "/reports")
             {
-                var keys = _backup.ReportKeys().Select(Json);
+                bool deleted = QueryValue(r.Query, "deleted") == "1";
+                var keys = (deleted ? _backup.DeletedReportKeys() : _backup.ReportKeys()).Select(Json);
                 Send(s, 200, "application/json", Bytes("[" + string.Join(",", keys) + "]"), origin);
             }
             else if (r.Path == "/report")
@@ -339,9 +351,9 @@ namespace BgAdvisorBridge
             return true;
         }
 
-        static void Unauthorized(Stream s, string origin)
+        static void Unauthorized(Stream s, string origin, bool keepAlive = true)
         {
-            Send(s, 401, "application/json", Bytes("{\"error\":\"token\"}"), origin);
+            Send(s, 401, "application/json", Bytes("{\"error\":\"token\"}"), origin, false, keepAlive);
         }
 
         bool HandleWrite(Stream s, Request r, string origin, byte[] body)
@@ -365,6 +377,23 @@ namespace BgAdvisorBridge
             }
             _backup.SaveReport(key, body);
             Send(s, 200, "application/json", Bytes("{\"saved\":true}"), origin);
+            return true;
+        }
+
+        /// <summary>Reads a body of an allowed size and throws it away; false if it is too large.</summary>
+        static bool DrainBody(Stream s, Request r)
+        {
+            string len;
+            long n = 0;
+            if (r.Headers.TryGetValue("Content-Length", out len) && !long.TryParse(len, out n)) return false;
+            if (n < 0 || n > MaxReportBytes) return false;
+            var buf = new byte[16 * 1024];
+            while (n > 0)
+            {
+                int got = s.Read(buf, 0, (int)Math.Min(buf.Length, n));
+                if (got <= 0) throw new IOException("body cut off");
+                n -= got;
+            }
             return true;
         }
 
@@ -394,18 +423,6 @@ namespace BgAdvisorBridge
         static int SafeCount(Func<int> f)
         {
             try { return f(); } catch { return 0; }
-        }
-
-        static byte[] ReadBackup(FileInfo gz, bool keepGzip)
-        {
-            if (keepGzip) return File.ReadAllBytes(gz.FullName);
-            using (var fs = new FileStream(gz.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var z = new GZipStream(fs, CompressionMode.Decompress))
-            using (var ms = new MemoryStream())
-            {
-                z.CopyTo(ms);
-                return ms.ToArray();
-            }
         }
 
         string SafeLogDir()
@@ -473,6 +490,78 @@ namespace BgAdvisorBridge
             return sb.Append('"').ToString();
         }
 
+        /// <summary>A 200 response whose body `write` streams (chunked transfer encoding); returns the
+        /// bytes sent (after gzip).</summary>
+        static long SendStream(Stream s, string type, string origin, bool gzip, Action<Stream> write)
+        {
+            var h = new StringBuilder();
+            h.Append("HTTP/1.1 200 OK\r\n");
+            h.Append("Content-Type: ").Append(type).Append("\r\n");
+            h.Append("Transfer-Encoding: chunked\r\n");
+            h.Append("Cache-Control: no-store\r\n");
+            h.Append("Connection: keep-alive\r\nKeep-Alive: timeout=15\r\n");
+            if (gzip) h.Append("Content-Encoding: gzip\r\n");
+            AppendCors(h, origin, false);
+            h.Append("\r\n");
+            var head = Encoding.ASCII.GetBytes(h.ToString());
+            s.Write(head, 0, head.Length);
+            var chunks = new ChunkedStream(s);
+            using (var buffered = new BufferedStream(chunks, 64 * 1024)) write(buffered);
+            chunks.End();
+            s.Flush();
+            return chunks.Sent;
+        }
+
+        /// <summary>Writes each block as one HTTP/1.1 chunk; End() writes the last, empty one.</summary>
+        sealed class ChunkedStream : Stream
+        {
+            static readonly byte[] Crlf = { 13, 10 };
+            readonly Stream _s;
+            public long Sent;
+
+            public ChunkedStream(Stream s) { _s = s; }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                if (count <= 0) return;
+                var size = Encoding.ASCII.GetBytes(count.ToString("x", CultureInfo.InvariantCulture) + "\r\n");
+                _s.Write(size, 0, size.Length);
+                _s.Write(buffer, offset, count);
+                _s.Write(Crlf, 0, 2);
+                Sent += count;
+            }
+
+            public void End()
+            {
+                var last = Encoding.ASCII.GetBytes("0\r\n\r\n");
+                _s.Write(last, 0, last.Length);
+            }
+
+            public override void Flush() { }
+            protected override void Dispose(bool disposing) { }  // never closes the connection
+            public override bool CanRead { get { return false; } }
+            public override bool CanSeek { get { return false; } }
+            public override bool CanWrite { get { return true; } }
+            public override long Length { get { throw new NotSupportedException(); } }
+            public override long Position { get { throw new NotSupportedException(); } set { throw new NotSupportedException(); } }
+            public override int Read(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+            public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
+            public override void SetLength(long value) { throw new NotSupportedException(); }
+        }
+
+        static void AppendCors(StringBuilder h, string origin, bool preflight)
+        {
+            if (!AllowedOrigin(origin)) return;
+            h.Append("Access-Control-Allow-Origin: ").Append(origin).Append("\r\nVary: Origin\r\n");
+            if (preflight)
+            {
+                h.Append("Access-Control-Allow-Methods: GET, POST, DELETE\r\n");
+                h.Append("Access-Control-Allow-Headers: Content-Type, Authorization\r\n");
+                h.Append("Access-Control-Allow-Private-Network: true\r\n");
+                h.Append("Access-Control-Max-Age: 600\r\n");
+            }
+        }
+
         static void Send(Stream s, int status, string type, byte[] body, string origin, bool preflight = false,
                          bool keepAlive = true, bool gzip = false)
         {
@@ -486,17 +575,7 @@ namespace BgAdvisorBridge
             h.Append("Cache-Control: no-store\r\n");
             h.Append(keepAlive ? "Connection: keep-alive\r\nKeep-Alive: timeout=15\r\n" : "Connection: close\r\n");
             if (gzip) h.Append("Content-Encoding: gzip\r\n");
-            if (AllowedOrigin(origin))
-            {
-                h.Append("Access-Control-Allow-Origin: ").Append(origin).Append("\r\nVary: Origin\r\n");
-                if (preflight)
-                {
-                    h.Append("Access-Control-Allow-Methods: GET, POST, DELETE\r\n");
-                    h.Append("Access-Control-Allow-Headers: Content-Type, Authorization\r\n");
-                    h.Append("Access-Control-Allow-Private-Network: true\r\n");
-                    h.Append("Access-Control-Max-Age: 600\r\n");
-                }
-            }
+            AppendCors(h, origin, preflight);
             h.Append("\r\n");
             var head = Encoding.ASCII.GetBytes(h.ToString());
             s.Write(head, 0, head.Length);

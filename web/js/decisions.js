@@ -235,10 +235,18 @@ export async function scoreOrder(engine, sim, run, combat, n = 1000) {
       return steps;
     };
     const perPlay = new Map(run.map(p => [p.seq, stepsFor(p)]));
-    // After the plays, arrange the warband as it was in the combat that followed.
-    const final = combat.me.board.map(m => (ent.has(m.entity) ? ent.get(m.entity) : m.card));
-    const jobs = [], labels = new Map(), opts = new Map();
+    // After the plays, arrange the warband as it was in the combat that followed (minions played
+    // in the run by their simulator eid too; others, such as tokens, by card).
+    const final = combat.me.board.map(m => entRun.get(m.entity) || m.card);
+    // Two plays that differ only by which copy of a card is used give the same game: an order
+    // that only swaps them is the same order.
+    const sig = new Map(run.map(p => [p.seq, JSON.stringify([p.card, p.handStats, ...perPlay.get(p.seq).map(
+      st => st.filter((x, j) => !(j === 1 && (st[0] === 'play' || st[0] === 'magnetize'))))])]));
+    const jobs = [], labels = new Map(), opts = new Map(), seen = new Set();
     for (const perm of permutations(run.length)) {
+      const key = perm.map(i => sig.get(run[i].seq)).join('\n');
+      if (seen.has(key)) continue;
+      seen.add(key);
       const id = perm.join(',');
       jobs.push({ id, steps: perm.flatMap(i => perPlay.get(run[i].seq)), final });
       labels.set(id, perm.map(i => nameOf(run[i].card)).join(' → '));

@@ -27,6 +27,8 @@ function init() {
       initCards(engine.catalog(), tw, skins);
       sim = await SimPool.create(module);
     })();
+    // A failed download or compile is not kept: the next review tries again.
+    ready.catch(() => { ready = null; });
   }
   return ready;
 }
