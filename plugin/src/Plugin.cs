@@ -30,6 +30,7 @@ namespace BgAdvisorBridge
         Backup _backup;
         bool _battlegrounds;
         MenuItem _menu;
+        bool _hooked;  // HDT's game events cannot be removed: ours are added once, however often the plugin is enabled
 
         public string Name { get { return "Battleground Advisor（英雄戰場復盤）"; } }
         public string Description
@@ -75,8 +76,12 @@ namespace BgAdvisorBridge
                 _server = null;
                 return;
             }
-            GameEvents.OnGameStart.Add(OnGameStart);
-            GameEvents.OnGameEnd.Add(OnGameEnd);
+            if (!_hooked)
+            {
+                GameEvents.OnGameStart.Add(OnGameStart);
+                GameEvents.OnGameEnd.Add(OnGameEnd);
+                _hooked = true;
+            }
             BackupLogsLater(0);
         }
 

@@ -56,11 +56,17 @@ export async function deletedKeys() {
   const v = await getKV(DELETED);
   return new Set(Array.isArray(v) ? v : []);
 }
-export async function markDeleted(key) {
-  const keys = await deletedKeys();
-  if (!keys.has(key)) await setKV(DELETED, [...keys, key]);
+/** Read, change and write the list in one transaction: two tabs cannot undo each other, and a
+ * failed read fails the change instead of replacing the list with a nearly empty one. */
+function changeDeleted(change) {
+  return tx('kv', 'readwrite', (s) => {
+    const get = s.get(DELETED);
+    get.onsuccess = () => {
+      const keys = new Set(Array.isArray(get.result) ? get.result : []);
+      if (change(keys)) s.put([...keys], DELETED);
+    };
+    return null;
+  });
 }
-export async function unmarkDeleted(key) {
-  const keys = await deletedKeys();
-  if (keys.delete(key)) await setKV(DELETED, [...keys]);
-}
+export const markDeleted = key => changeDeleted(keys => !keys.has(key) && !!keys.add(key));
+export const unmarkDeleted = key => changeDeleted(keys => keys.delete(key));

@@ -11,8 +11,23 @@ async function fresh() {
   engine = await Engine.create(module);
 }
 
+// An error thrown in an async handler reaches nobody (it is no onerror for the pool): every
+// message is answered, with the error if need be, so the pool never waits for ever.
 self.onmessage = async (ev) => {
   const msg = ev.data;
+  try {
+    await handle(msg);
+  } catch (e) {
+    const text = `${(e && e.name) || 'Error'}: ${(e && e.message) || e}`;
+    if (msg.type === 'init') self.postMessage({ type: 'initError', message: text });
+    else if (msg.type === 'state') self.postMessage({ type: 'done', chunkId: msg.chunkId, out: [msg.id, null, text] });
+    else if (msg.type === 'chunk') {
+      self.postMessage({ type: 'done', chunkId: msg.chunkId, out: msg.jobs.map(j => [j.id, null, text]) });
+    }
+  }
+};
+
+async function handle(msg) {
   if (msg.type === 'init') {
     module = msg.module;
     await fresh();
@@ -57,4 +72,4 @@ self.onmessage = async (ev) => {
   }
   if (baseGame && baseGame.e === engine) baseGame.free();
   self.postMessage({ type: 'done', chunkId, out });
-};
+}

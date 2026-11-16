@@ -58,7 +58,7 @@ Since plugin 0.3.0, data is backed up in **Documents\BG Advisor**:
 
 ### Privacy and security
 
-As of the current code (plugin 0.4.3):
+As of the current code (plugin 0.4.4):
 
 **Files the plugin reads**
 - `Hearthstone_*\Power.log` and `Power.log` in Hearthstone's `Logs` folder (the install location set in HDT; `C:\Program Files (x86)\Hearthstone\Logs` if it cannot be found).
@@ -75,8 +75,11 @@ As of the current code (plugin 0.4.3):
 
 **Network**
 - The plugin listens only on `127.0.0.1`, ports 47613-47617, so other computers cannot reach it, and it never connects to any site by itself.
-- The page downloads only its own files from GitHub Pages (code, simulator, card names, `plugin/version.json`) and reads logs from the local plugin.
-  There is no analytics, advertising or third-party code; GitHub sees your IP address like any web site.
+- The page downloads files only from GitHub Pages (`wsed0412.github.io`) and reads logs from the local plugin: its own files (code, simulator,
+  card names, `plugin/version.json`), plus `/nav.js`, the site menu shared by the author's pages (it lives in the author's site repository, not in this one).
+  There is no analytics, advertising or code from anywhere else; GitHub sees your IP address like any web site.
+- Browsers separate storage by site address, and every page under `wsed0412.github.io` (the same author's other projects) is the same site:
+  those pages share this page's storage, the plugin's key included. Pages of any other site, or on your computer, do not.
 - Analysis runs in the browser; logs and reports are never uploaded. Reports are kept in the browser's IndexedDB (readable only by this site) and in the backup folder above.
 
 **What a report contains**: your BattleTag, opponents' names as they appear in the log, heroes, each turn's boards and scores.

@@ -5,7 +5,8 @@
 //        skipSource (games read only from this file are left out)}
 // out: {type: 'status', text} | {type: 'found', games: [{key, hero}]} |
 //      {type: 'progress', key, done, total, text} | {type: 'result', result} |
-//      {type: 'done', reviewed} | {type: 'error', message}
+//      {type: 'failed', key, hero, message} (this game could not be reviewed; the others go on) |
+//      {type: 'done', reviewed, failed} | {type: 'error', message}
 
 import { compileEngine, Engine } from './engine.js';
 import { initCards } from './cards.js';
@@ -14,6 +15,9 @@ import { SimPool } from './sim.js';
 import { PRECISION, gameKey, reviewGame } from './review.js';
 
 let module = null, engine = null, sim = null, ready = null;
+// Games whose review failed in this page session: automatic reviews leave them alone, so a game
+// that cannot be reviewed is not tried again after every game (msg.retryFailed tries again).
+const failedKeys = new Set();
 
 function init() {
   if (!ready) {
@@ -73,24 +77,33 @@ async function review(msg) {
     && g.source !== msg.skipSource);
   const dayOfGame = g => days.get(g.source.split(' + ')[0]) || '';
   games = games.filter(g => !known.has(gameKey(g, dayOfGame(g))));
+  if (!msg.retryFailed) games = games.filter(g => !failedKeys.has(gameKey(g, dayOfGame(g))));
   if (msg.limit) games = games.slice(-msg.limit);
   self.postMessage({ type: 'found', games: games.map(g => ({ key: gameKey(g, dayOfGame(g)), hero: g.hero })) });
 
   const prec = PRECISION[msg.precision] || PRECISION.full;
-  let reviewed = 0;
+  let reviewed = 0, failed = 0;
   for (const g of games) {
-    if (engine.broken) engine = await Engine.create(module);
     const key = gameKey(g, dayOfGame(g));
-    const t0 = performance.now();
-    const result = await reviewGame(engine, sim, g, prec, (done, total, round) =>
-      self.postMessage({ type: 'progress', key, hero: g.hero, done, total, round }),
-      dayOfGame(g));
-    result.seconds = Math.round((performance.now() - t0) / 1000);
-    result.precision = msg.precision || 'full';
-    self.postMessage({ type: 'result', result });
-    reviewed += 1;
+    try {
+      if (engine.broken) engine = await Engine.create(module);
+      const t0 = performance.now();
+      const result = await reviewGame(engine, sim, g, prec, (done, total, round) =>
+        self.postMessage({ type: 'progress', key, hero: g.hero, done, total, round }),
+        dayOfGame(g));
+      result.seconds = Math.round((performance.now() - t0) / 1000);
+      result.precision = msg.precision || 'full';
+      self.postMessage({ type: 'result', result });
+      failedKeys.delete(key);
+      reviewed += 1;
+    } catch (e) {
+      // This game only: the games after it are still reviewed.
+      failedKeys.add(key);
+      failed += 1;
+      self.postMessage({ type: 'failed', key, hero: g.hero, message: `${e && e.message || e}` });
+    }
   }
-  self.postMessage({ type: 'done', reviewed });
+  self.postMessage({ type: 'done', reviewed, failed });
 }
 
 let queue = Promise.resolve();

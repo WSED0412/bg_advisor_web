@@ -22,6 +22,7 @@ if (TEST) {
 }
 const POLL_MS = 3000;
 const BACKFILL_GAMES = 3;
+const SYNC_TRIES = 5;  // tries of the first sync with the plugin's backup
 
 const state = {
   busy: false,
@@ -49,7 +50,7 @@ const announce = () => { if (channel) channel.postMessage({ type: 'reports' }); 
 if (channel) channel.onmessage = ev => { if (ev.data && ev.data.type === 'reports' && route().page === 'list') render(); };
 
 /** skipDeleted: automatic reviews leave the games whose reports the player deleted alone. */
-function review(files, { limit = 0, onlyComplete = true, context = false, skipDeleted = false } = {}) {
+function review(files, { limit = 0, onlyComplete = true, context = false, skipDeleted = false, retryFailed = false } = {}) {
   pending = pending.then(() => withReviewLock(() => new Promise(async (resolve) => {
     if (!worker) worker = new Worker(new URL('./review-worker.js', import.meta.url), { type: 'module' });
     state.busy = true;
@@ -67,12 +68,23 @@ function review(files, { limit = 0, onlyComplete = true, context = false, skipDe
         state.progress = m;
         renderStatus();
       } else if (m.type === 'result') {
-        await saveGame(m.result);
-        await unmarkDeleted(m.result.key);
+        try {
+          await saveGame(m.result);
+          await unmarkDeleted(m.result.key);
+        } catch (e) {
+          setError('err.save', { msg: (e && e.message) || String(e) });
+          renderStatus();
+          return;
+        }
         backupReport(m.result);
         announce();
         state.progress = null;
         onNewReport(m.result);
+      } else if (m.type === 'failed') {
+        // One game could not be reviewed; the worker goes on with the others.
+        setError('err.gameFailed', { hero: card(m.hero), msg: m.message });
+        state.progress = null;
+        renderStatus();
       } else if (m.type === 'done' || m.type === 'error') {
         if (m.type === 'error') state.error = { text: m.message };
         state.busy = false;
@@ -94,17 +106,27 @@ function review(files, { limit = 0, onlyComplete = true, context = false, skipDe
     // context: the first file is only there for a game reconnected across files; games that lie
     // wholly inside it were (or will be) reviewed with the file before it.
     const skipSource = context && files.length > 1 ? files[0].source : null;
-    const known = await gameKeys();
-    if (skipDeleted) known.push(...await deletedKeys());
-    worker.postMessage({ type: 'review', files, known, precision: state.precision, limit, onlyComplete, skipSource });
+    try {
+      const known = await gameKeys();
+      if (skipDeleted) known.push(...await deletedKeys());
+      worker.postMessage({ type: 'review', files, known, precision: state.precision, limit, onlyComplete, skipSource, retryFailed });
+    } catch (e) {
+      // Without this the promise never settles: the lock stays held and every tab waits for ever.
+      setError('err.worker', { msg: (e && e.message) || String(e) });
+      state.busy = false;
+      renderStatus();
+      resolve();
+    }
   })));
   return pending;
 }
 
 function onNewReport(res) {
   if (document.hidden) document.title = t('title.new', { hero: heroName(res) });
-  if (route().page === 'list') location.hash = `#/game/${encodeURIComponent(res.key)}`;
-  else render();
+  const r = route();
+  if (r.page === 'list') location.hash = `#/game/${encodeURIComponent(res.key)}`;
+  // Another report is open: leave it as it is (a redraw would close what the reader opened).
+  else if (r.key === res.key) render();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -341,8 +363,17 @@ async function bridgeTick() {
     if (b.ends === null) {
       // First contact: bring the reports in line with the backup, then review recent finished
       // games that still have no report.
+      // The count is kept only once the sync went through, so a failed sync is tried again on the
+      // next tick (a few times: after that the page works without it rather than never reviewing).
+      if (canBackup() && (b.syncFails || 0) < SYNC_TRIES) {
+        try {
+          await syncReports();
+        } catch (e) {
+          b.syncFails = (b.syncFails || 0) + 1;
+          throw e;
+        }
+      }
       b.ends = st.gameEnds;
-      if (canBackup()) await syncReports();
       if (st.logDirOk) await bridgeReview(BACKFILL_GAMES);
     } else if (st.gameEnds > b.ends) {
       b.ends = st.gameEnds;
@@ -404,7 +435,7 @@ async function analyzeBackups() {
     for (let i = 0; i < list.length; i++) {
       const files = [];
       for (const f of list.slice(Math.max(0, i - 1), i + 1)) files.push(await fetchLog(f));
-      await review(files, { context: true });
+      await review(files, { context: true, retryFailed: true });
     }
   } catch (e) {
     state.error = { text: e.message };
@@ -451,18 +482,28 @@ async function connectBridge() {
   }
 }
 
-/** #/bridge/<port>[/<token>]: opened by the plugin. The token is kept and taken off the address. */
-async function handleBridgeRoute() {
+/** #/bridge/<port>[/<token>], opened by the plugin: taken off the address at once (nothing is
+ * awaited first, so the token never stays there) and returned as {port, token}; else null. */
+function takeBridgeRoute() {
   const m = /^#\/bridge\/(\d+)(?:\/([^/]*))?$/.exec(location.hash);
-  if (!m) return false;
-  const port = parseInt(m[1], 10);
+  if (!m) return null;
   history.replaceState(null, '', location.pathname + location.search + '#/');
-  if (m[2] && TOKEN_RE.test(m[2])) {
-    state.bridgeToken = m[2];
-    await setKV('bridgeToken', m[2]);
+  return { port: parseInt(m[1], 10), token: m[2] && TOKEN_RE.test(m[2]) ? m[2] : '' };
+}
+
+/** Keep the token and connect to the plugin on that port. */
+async function openBridgeRoute(opened) {
+  if (opened.token) {
+    state.bridgeToken = opened.token;
+    await setKV('bridgeToken', opened.token);
   }
-  if (BRIDGE_PORTS.includes(port)) await startBridge(port);
-  return true;
+  if (BRIDGE_PORTS.includes(opened.port)) await startBridge(opened.port);
+}
+
+async function handleBridgeRoute() {
+  const opened = takeBridgeRoute();
+  if (opened) await openBridgeRoute(opened);
+  return !!opened;
 }
 
 // ---------------------------------------------------------------- import / export
@@ -503,7 +544,12 @@ async function importFiles(files) {
 
 function route() {
   const m = /^#\/game\/(.+)$/.exec(location.hash);
-  return m ? { page: 'game', key: decodeURIComponent(m[1]) } : { page: 'list' };
+  if (!m) return { page: 'list' };
+  try {
+    return { page: 'game', key: decodeURIComponent(m[1]) };
+  } catch {
+    return { page: 'game', key: m[1] };  // a broken % escape: no such report, as the page then says
+  }
 }
 
 function renderStatus() {
@@ -715,6 +761,7 @@ window.addEventListener('hashchange', async () => {
 })();
 
 async function start() {
+  const opened = takeBridgeRoute();  // first: the token leaves the address before anything can fail
   initLang(await getKV('lang'));
   await loadNames();
   initCardTip();
@@ -723,7 +770,8 @@ async function start() {
   await migrateLocalKeys();
   const token = await getKV('bridgeToken');
   if (TOKEN_RE.test(token || '')) state.bridgeToken = token;
-  if (!(await handleBridgeRoute())) {
+  if (opened) await openBridgeRoute(opened);
+  else {
     const port = await getKV('bridgePort');
     if (BRIDGE_PORTS.includes(port)) await startBridge(port);
   }

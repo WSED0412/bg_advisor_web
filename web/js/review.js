@@ -5,6 +5,7 @@
 // The result has the same shape as the Python version (bg_advisor/review.py).
 
 import { build, SceneError } from './scene.js';
+import { EngineError } from './engine.js';
 import { nameOf } from './cards.js';
 import { combatScene } from './bglog.js';
 import { evaluateGame, distinct } from './positioning.js';
@@ -138,8 +139,10 @@ async function reviewDecisions(engine, sim, plays, combat, n, skipped, picks = [
     try {
       reports.push(await fn());
     } catch (e) {
-      if (!(e instanceof Skip)) throw e;
-      skipped.push({ ...subject, code: e.code, params: e.params });
+      if (e instanceof Skip) skipped.push({ ...subject, code: e.code, params: e.params });
+      // The simulator crashed on this decision: leave it out, keep the rest of the report.
+      else if (e instanceof EngineError) skipped.push({ ...subject, code: 'scene', params: { msg: e.message } });
+      else throw e;
     }
   };
   for (const p of plays) {
