@@ -72,7 +72,7 @@ class FakeBridge(SimpleHTTPRequestHandler):
     """The plugin's HTTP API (see plugin/src/BridgeServer.cs), for page tests without HDT."""
     protocol_version = "HTTP/1.1"
     token = ""
-    version = "0.4.3"
+    version = "0.4.4"
     logs: Path = WEB / "testdata"
     reports: dict[str, bytes] = {}
     deleted: dict[str, bytes] = {}   # reports deleted by a page (the plugin's reports\deleted)

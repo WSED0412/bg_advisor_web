@@ -8,7 +8,10 @@ export class SimPool {
     const n = workers || Math.max(1, Math.min(16, (navigator.hardwareConcurrency || 4) - 1));
     const pool = new SimPool(n);
     await Promise.all(pool.workers.map(w => new Promise((resolve, reject) => {
-      w.onmessage = ev => (ev.data.type === 'ready' ? resolve() : null);
+      w.onmessage = ev => {
+        if (ev.data.type === 'ready') resolve();
+        else if (ev.data.type === 'initError') reject(new Error(`模擬 worker 無法啟動：${ev.data.message}`));
+      };
       w.onerror = e => reject(new Error(`模擬 worker 無法啟動：${e.message || e}`));
       w.postMessage({ type: 'init', module });
     })));
