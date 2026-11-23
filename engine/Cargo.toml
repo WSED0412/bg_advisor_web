@@ -10,8 +10,9 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-# TavernGym (Battlegrounds 37.0.2).
-taverngym = { git = "https://github.com/MCG-NJU/AutoTavern", rev = "1c2086a997afde46d68c6c5992cab194ddcfce88" }
+# TavernGym (Battlegrounds 37.0.2 with the 37.0.3 server hotfix): the bg-37.0.3 branch of
+# WSED0412/AutoTavern, a fork of MCG-NJU/AutoTavern, until upstream has the hotfix.
+taverngym = { git = "https://github.com/WSED0412/AutoTavern", rev = "caa6d46f2f13d40e6511be703e444a36a84960ab" }
 serde_json = "1.0.151"
 
 [profile.release]
