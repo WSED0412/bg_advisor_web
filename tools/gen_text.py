@@ -7,6 +7,10 @@ writes web/data/text_en.json and web/data/text_zhTW.json:
 for every card in web/data/names_en.json. Fields that a card does not have are left out.
 The page loads these files only when a card is first hovered or tapped.
 
+Server-side hotfixes (37.0.3) do not reach HearthstoneJSON's client data: HOTFIX then patches
+the downloaded text to match the simulator. `--hotfix-only` applies HOTFIX to the existing
+files without downloading.
+
 Hearthstone's card data belongs to Blizzard Entertainment; it is shown here as in other
 non-commercial fan tools.
 """
@@ -20,6 +24,41 @@ from pathlib import Path
 WEB = Path(__file__).resolve().parent.parent / "web"
 URL = "https://api.hearthstonejson.com/v1/latest/{}/cards.json"
 LOCALES = {"enUS": "text_en.json", "zhTW": "text_zhTW.json"}
+
+# 37.0.3 server hotfix (2026-11-17): {card id: {"t": tier, locale: [(old, new) in "x"]}}. A
+# replacement whose new text is already there (HearthstoneJSON caught up) is skipped.
+_FELBOAR = {"enUS": [("cast 3 spells", "cast 4 spells"), ("(3 left!)", "(4 left!)")],
+            "zhTW": [("施放3個法術", "施放4個法術"), ("還剩3個", "還剩4個")]}
+HOTFIX = {
+    "BG36_206": {"t": 5},  # Snarky Shark: Tier 4 -> 5
+    "BG36_206_G": {"t": 5},
+    "BG28_633": _FELBOAR,  # Felboar: after 4 spells (was 3)
+    "BG28_633_G": _FELBOAR,
+    "BG23_017": {"enUS": [("+2/+1", "+1/+1")], "zhTW": [("+2/+1", "+1/+1")]},  # Sanguine Champion
+    "BG23_017_G": {"enUS": [("+4/+2", "+2/+2")], "zhTW": [("+4/+2", "+2/+2")]},
+}
+
+
+def apply_hotfix(out: dict, locale: str) -> None:
+    for cid, fix in HOTFIX.items():
+        e = out.get(cid)
+        if e is None:
+            continue
+        if "t" in fix:
+            e["t"] = fix["t"]
+        for old, new in fix.get(locale, []):
+            x = e.get("x", "")
+            if new in x:
+                continue
+            if old not in x:
+                raise SystemExit(f"{locale} {cid}: {old!r} not in {x!r}")
+            e["x"] = x.replace(old, new)
+
+
+def write(fname: str, out: dict) -> None:
+    path = WEB / "data" / fname
+    path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":"), sort_keys=True), "utf-8")
+    print(f"{fname}: {len(out)} cards, {path.stat().st_size / 1e3:.0f} KB")
 
 
 def download(locale: str) -> list:
@@ -39,6 +78,12 @@ def download(locale: str) -> list:
 
 
 def main() -> int:
+    if "--hotfix-only" in sys.argv:
+        for locale, fname in LOCALES.items():
+            out = json.loads((WEB / "data" / fname).read_text("utf-8"))
+            apply_hotfix(out, locale)
+            write(fname, out)
+        return 0
     ids = json.loads((WEB / "data" / "names_en.json").read_text("utf-8"))
     for locale, fname in LOCALES.items():
         by_id = {c["id"]: c for c in download(locale)}
@@ -57,9 +102,8 @@ def main() -> int:
                 e["r"] = races
             if e:
                 out[i] = e
-        path = WEB / "data" / fname
-        path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":"), sort_keys=True), "utf-8")
-        print(f"{fname}: {len(out)} cards, {path.stat().st_size / 1e3:.0f} KB")
+        apply_hotfix(out, locale)
+        write(fname, out)
     return 0
 
 
